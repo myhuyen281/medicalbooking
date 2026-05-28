@@ -1,0 +1,246 @@
+/* Global Design System - MedicalBooking */
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+    --primary-color: #023f6d;
+    --primary-light: #00b5f1;
+    --primary-rgb: 2, 63, 109;
+    --light-bg: #f8fafc;
+    --white: #ffffff;
+    --slate-50: #f8fafc;
+    --slate-100: #f1f5f9;
+    --slate-200: #e2e8f0;
+    --slate-300: #cbd5e1;
+    --slate-400: #94a3b8;
+    --slate-600: #475569;
+    --slate-700: #334155;
+    --slate-800: #1e293b;
+    --emerald-500: #10b981;
+    --amber-500: #f59e0b;
+    --rose-500: #f43f5e;
+    --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+    --shadow-xl: 0 20px 25px -5px rgba(2, 63, 109, 0.08), 0 8px 10px -6px rgba(2, 63, 109, 0.05);
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+body {
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--slate-800);
+    background-color: var(--light-bg);
+    overflow-x: hidden;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: var(--slate-300);
+    border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: var(--slate-400);
+}
+
+/* Glassmorphism Elements */
+.glass-header {
+    background-color: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+}
+
+/* Micro-animations and Interactions */
+.feature-card {
+    transition: var(--transition-smooth);
+    border: 1px solid rgba(226, 232, 240, 0.7) !important;
+    overflow: hidden;
+    position: relative;
+    background: var(--white);
+}
+.feature-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -150%;
+    width: 50%;
+    height: 100%;
+    background: linear-gradient(to right, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.3) 100%);
+    transform: skewX(-25deg);
+    transition: 0.75s;
+}
+.feature-card:hover {
+    transform: translateY(-8px);
+    box-shadow: var(--shadow-xl) !important;
+    border-color: rgba(0, 181, 241, 0.4) !important;
+}
+.feature-card:hover::after {
+    left: 150%;
+}
+
+.specialty-hover {
+    display: inline-block;
+    transition: var(--transition-smooth);
+}
+.specialty-hover:hover {
+    transform: translateY(-5px);
+}
+.specialty-hover .icon-wrapper {
+    transition: var(--transition-smooth);
+    background: var(--slate-50);
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--slate-200);
+}
+.specialty-hover:hover .icon-wrapper {
+    background: rgba(0, 181, 241, 0.1) !important;
+    border-color: var(--primary-light) !important;
+    box-shadow: 0 8px 16px rgba(0, 181, 241, 0.15);
+}
+
+/* Smooth Horizontal Scroll Containers */
+.scroll-container-horizontal {
+    scroll-behavior: smooth;
+}
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* Custom Search Container */
+.input-group-search {
+    border-radius: 9999px;
+    background: var(--white);
+    box-shadow: var(--shadow-lg);
+    border: 2px solid transparent;
+    transition: var(--transition-smooth);
+}
+.input-group-search:focus-within {
+    border-color: var(--primary-light);
+    box-shadow: 0 10px 25px rgba(0, 181, 241, 0.18);
+}
+
+/* Custom Styled Cards */
+.card-premium {
+    background-color: var(--white);
+    border: 1px solid rgba(226, 232, 240, 0.7);
+    border-radius: 20px;
+    box-shadow: var(--shadow-sm);
+    transition: var(--transition-smooth);
+    overflow: hidden;
+}
+.card-premium:hover {
+    box-shadow: var(--shadow-xl);
+    transform: translateY(-6px);
+    border-color: rgba(0, 181, 241, 0.25);
+}
+
+/* Floating Actions & Buttons */
+.btn-premium-primary {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%);
+    border: none;
+    border-radius: 12px;
+    color: var(--white);
+    font-weight: 700;
+    transition: var(--transition-smooth);
+    box-shadow: 0 4px 12px rgba(2, 63, 109, 0.15);
+}
+.btn-premium-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0, 181, 241, 0.3);
+    color: var(--white);
+}
+
+.btn-premium-outline {
+    border: 2px solid var(--primary-light);
+    color: var(--primary-light);
+    background: transparent;
+    border-radius: 999px;
+    font-weight: 700;
+    transition: var(--transition-smooth);
+}
+.btn-premium-outline:hover {
+    background: var(--primary-light);
+    color: var(--white);
+    box-shadow: 0 6px 15px rgba(0, 181, 241, 0.25);
+    transform: translateY(-2px);
+}
+
+/* Navigation Dropdown Premium Styles */
+.navbar-premium .dropdown-menu {
+    border: none;
+    box-shadow: var(--shadow-xl);
+    border-radius: 16px !important;
+    background: linear-gradient(180deg, #ffffff 0%, #f4fbff 100%);
+    padding: 12px;
+    border: 1px solid rgba(0, 181, 241, 0.08);
+}
+.navbar-premium .dropdown-item {
+    border-radius: 10px;
+    padding: 10px 16px;
+    font-weight: 600;
+    color: var(--primary-color);
+    transition: var(--transition-smooth);
+}
+.navbar-premium .dropdown-item:hover {
+    background-color: rgba(0, 181, 241, 0.08);
+    color: var(--primary-light);
+    transform: translateX(4px);
+}
+
+/* Partner Logos Hover */
+.partner-logo-container {
+    transition: var(--transition-smooth);
+    border: 1px solid rgba(226, 232, 240, 0.8) !important;
+    background: var(--white);
+}
+.partner-logo-container:hover {
+    transform: scale(1.05);
+    border-color: var(--primary-light) !important;
+    box-shadow: var(--shadow-md);
+}
+
+/* Testimonial Premium Tweaks */
+.testimonial-card {
+    background: var(--white);
+    border-radius: 24px;
+    border: 1px solid rgba(226, 232, 240, 0.7);
+    padding: 35px;
+    transition: var(--transition-smooth);
+}
+.testimonial-card:hover {
+    box-shadow: var(--shadow-xl);
+    transform: translateY(-5px);
+    border-color: rgba(0, 181, 241, 0.2);
+}
+.testimonial-quote-icon {
+    font-size: 3.5rem;
+    color: rgba(0, 181, 241, 0.15);
+    line-height: 1;
+}
+
+/* News Cards Hover */
+.news-card-premium {
+    transition: var(--transition-smooth);
+    border-radius: 20px;
+    overflow: hidden;
+}
+.news-card-premium:hover {
+    transform: translateY(-6px);
+    box-shadow: var(--shadow-xl) !important;
+}
+.news-card-premium .card-title {
+    transition: var(--transition-smooth);
+}
+.news-card-premium:hover .card-title {
+    color: var(--primary-light) !important;
+}
