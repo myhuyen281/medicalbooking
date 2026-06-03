@@ -199,17 +199,12 @@ if ($showHeaderHotline && class_exists('Database')) {
                                 <li><a class="dropdown-item py-3 px-3 fw-semibold" href="<?php echo $base_url; ?>/specialty_facilities.php">Đặt khám chuyên khoa</a></li>
                                 <li><a class="dropdown-item py-3 px-3 fw-semibold" href="#">Gọi video với bác sĩ</a></li>
                                 <li><a class="dropdown-item py-3 px-3 fw-semibold" href="<?php echo $base_url; ?>/lab_booking.php">Đặt lịch xét nghiệm</a></li>
-                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="#">Đặt khám ngoài giờ</a></li>
-                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="#">Giúp việc cá nhân</a></li>
-                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="#">Khám doanh nghiệp</a></li>
-                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="#">Đặt khám theo bác sĩ</a></li>
-                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="#">Đặt lịch Chụp phim & Nội soi</a></li>
-                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="#">Gói khám sức khỏe</a></li>
+                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="<?php echo $base_url; ?>/after_hours_booking.php">Đặt khám ngoài giờ</a></li>
+                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="<?php echo $base_url; ?>/doctor_booking.php">Đặt khám theo bác sĩ</a></li>
+                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="<?php echo $base_url; ?>/imaging_booking.php">Đặt lịch Chụp phim & Nội soi</a></li>
+                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="<?php echo $base_url; ?>/health_package_booking.php">Gói khám sức khỏe</a></li>
                                 <li><a class="dropdown-item py-3 px-3 fw-semibold" href="<?php echo $base_url; ?>/facilities.php?type=home">Y tế tại nhà</a></li>
                             </ul>
-                        </li>
-                        <li class="nav-item px-1">
-                            <a class="nav-link text-dark" href="#">Khám sức khỏe doanh nghiệp</a>
                         </li>
                         <li class="nav-item dropdown px-1 position-relative">
                             <a class="nav-link dropdown-toggle text-dark" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -226,9 +221,7 @@ if ($showHeaderHotline && class_exists('Database')) {
                                 Hướng dẫn
                             </a>
                             <ul class="dropdown-menu border-0 shadow-sm mt-2 rounded-3 py-2 guide-dropdown">
-                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="#">Cài đặt ứng dụng</a></li>
                                 <li><a class="dropdown-item py-3 px-3 fw-semibold" href="#">Đặt lịch khám</a></li>
-                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="#">Tư vấn khám bệnh qua video</a></li>
                                 <li><a class="dropdown-item py-3 px-3 fw-semibold" href="#">Quy trình hoàn phí</a></li>
                                 <li><a class="dropdown-item py-3 px-3 fw-semibold" href="#">Câu hỏi thường gặp</a></li>
                                 <li><a class="dropdown-item py-3 px-3 fw-semibold" href="#">Quy trình đi khám</a></li>

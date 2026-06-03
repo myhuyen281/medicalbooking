@@ -13,42 +13,17 @@ try {
     $homepageBanners = [];
 }
 
-if (count($homepageBanners) === 0) {
-    $homepageBanners = [
-        [
-            'title' => 'Bệnh viện Da liễu Cần Thơ',
-            'image_path' => 'https://benhviendalieucantho.vn/hinhtintuc/trinhchieu/banner_face_web_2026.png',
-            'link_url' => 'https://benhviendalieucantho.vn/'
-        ],
-        [
-            'title' => 'Khám bệnh hiệu quả',
-            'image_path' => 'https://qn.medcare.vn/wp-content/uploads/sites/6/2022/03/Banner-Kham-benh-hieu-qua-scaled.jpg',
-            'link_url' => 'https://qn.medcare.vn/kham-benh/'
-        ],
-        [
-            'title' => 'SIS Cần Thơ',
-            'image_path' => 'https://sisvietnam.vn/wp-content/uploads/2026/05/18.5Artboard-2-copy.jpg',
-            'link_url' => 'https://sisvietnam.vn/tong-quan-ve-sis/'
-        ],
-        [
-            'title' => 'Phòng khám Đức Quang',
-            'image_path' => 'https://www.phongkhamducquang.com/files/sites/site_43/site_43_banner/banner-ducquang.jpg',
-            'link_url' => 'https://phongkhamducquang.com/index.html'
-        ],
-        [
-            'title' => 'Bệnh viện Đông Đô',
-            'image_path' => 'https://benhviendongdo.com.vn/wp-content/uploads/2019/05/banner-1.jpg',
-            'link_url' => 'https://benhviendongdo.com.vn/banner-1/'
-        ]
-    ];
-}
-
 try {
     $db->query("SELECT DISTINCT h.*
                 FROM hospitals h
-                INNER JOIN users u ON u.hospital_id = h.id AND u.role = 'hospital'
-                WHERE COALESCE(u.hospital_approval_status, 'approved') = 'approved'
-                ORDER BY h.id DESC
+                LEFT JOIN users u ON u.hospital_id = h.id AND u.role = 'hospital'
+                WHERE u.id IS NOT NULL AND COALESCE(u.hospital_approval_status, 'approved') = 'approved'
+                ORDER BY CASE
+                    WHEN h.name LIKE '%Da liễu%' THEN 0
+                    WHEN h.name LIKE '%Nhi đồng%' THEN 1
+                    WHEN h.name LIKE '%Hoàng Mỹ%' OR h.name LIKE '%Hoàn Mỹ%' THEN 2
+                    ELSE 3
+                END, CASE WHEN h.logo_url IS NOT NULL AND h.logo_url <> '' THEN 0 ELSE 1 END, h.id DESC
                 LIMIT 20");
     $partnerHospitals = $db->resultSet();
 } catch (Exception $e) {
@@ -61,10 +36,15 @@ try {
                 LEFT JOIN users u ON u.hospital_id = h.id AND u.role = 'hospital'
                 LEFT JOIN doctors d ON d.hospital_id = h.id
                 LEFT JOIN appointments a ON a.doctor_id = d.id AND a.status IN ('confirmed', 'completed')
-                WHERE u.id IS NOT NULL OR EXISTS (SELECT 1 FROM doctors d2 WHERE d2.hospital_id = h.id)
+                WHERE u.id IS NOT NULL AND COALESCE(u.hospital_approval_status, 'approved') = 'approved'
                 GROUP BY h.id
-                ORDER BY successful_booking_count DESC, h.rating DESC, h.id ASC
-                LIMIT 8");
+                ORDER BY CASE
+                    WHEN h.name LIKE '%Da liễu%' THEN 0
+                    WHEN h.name LIKE '%Nhi đồng%' THEN 1
+                    WHEN h.name LIKE '%Hoàng Mỹ%' OR h.name LIKE '%Hoàn Mỹ%' THEN 2
+                    ELSE 3
+                END, CASE WHEN h.logo_url IS NOT NULL AND h.logo_url <> '' THEN 0 ELSE 1 END, successful_booking_count DESC, h.rating DESC, h.id DESC
+                LIMIT 12");
     $featuredHospitals = $db->resultSet();
 } catch (Exception $e) {
     $featuredHospitals = [];
@@ -83,6 +63,57 @@ try {
     $searchServices = [];
 }
 
+try {
+    $db->query("SELECT lp.*, h.name AS hospital_name, h.logo_url
+                FROM lab_packages lp
+                INNER JOIN hospitals h ON h.id = lp.hospital_id
+                LEFT JOIN users u ON u.hospital_id = h.id AND u.role = 'hospital'
+                WHERE lp.is_active = 1
+                  AND lp.category IN ('health', 'lab', 'vaccination')
+                  AND COALESCE(u.hospital_approval_status, 'approved') = 'approved'
+                ORDER BY FIELD(lp.category, 'health', 'lab', 'vaccination'), lp.id DESC
+                LIMIT 12");
+    $homepagePackages = $db->resultSet();
+} catch (Exception $e) {
+    $homepagePackages = [];
+}
+
+function homepagePriorityKey($hospital) {
+    $name = mb_strtolower($hospital['name'] ?? '', 'UTF-8');
+    if (strpos($name, 'medlatec') !== false) {
+        return 'medlatec';
+    }
+    if (strpos($name, 'da liễu') !== false) {
+        return 'da_lieu';
+    }
+    if (strpos($name, 'nhi đồng') !== false) {
+        return 'nhi_dong';
+    }
+    if (strpos($name, 'hoàng mỹ') !== false || strpos($name, 'hoàn mỹ') !== false) {
+        return 'hoan_my';
+    }
+    return '';
+}
+
+function homepageDedupePriorityHospitals($hospitals) {
+    $seen = [];
+    $result = [];
+    foreach ($hospitals as $hospital) {
+        $key = homepagePriorityKey($hospital);
+        if ($key !== '') {
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+        }
+        $result[] = $hospital;
+    }
+    return $result;
+}
+
+$partnerHospitals = homepageDedupePriorityHospitals($partnerHospitals);
+$featuredHospitals = homepageDedupePriorityHospitals($featuredHospitals);
+
 function homepageBannerImageSrc($path) {
     if (empty($path)) {
         return '';
@@ -90,11 +121,63 @@ function homepageBannerImageSrc($path) {
     return preg_match('#^https?://#', $path) ? $path : $GLOBALS['base_url'] . '/' . $path;
 }
 
+function homepageHospitalLogo($hospital) {
+    $name = $hospital['name'] ?? '';
+    if (stripos($name, 'MEDLATEC') !== false) {
+        return $GLOBALS['base_url'] . '/uploads/hospitals/medlatec_cantho_logo.png';
+    }
+    if (stripos($name, 'VNVC') !== false) {
+        return 'https://sanvieclamcantho.com/upload/imagelogo/vnvc1724469700.png';
+    }
+    if (stripos($name, 'Long Châu') !== false) {
+        return 'https://cdn-new.topcv.vn/unsafe/https://static.topcv.vn/company_logos/IinkQQY7z2A7AQXZ84KKTNq83awObGLS_1650511186____11070390482b3374c7cee11f4b9f6fdf.png';
+    }
+    if (stripos($name, 'DIAG') !== false) {
+        return $GLOBALS['base_url'] . '/uploads/hospitals/diag_logo.svg';
+    }
+    if (stripos($name, 'MEDIC') !== false) {
+        return $GLOBALS['base_url'] . '/uploads/hospitals/medic_logo.jpg';
+    }
+    if (stripos($name, 'Y Dược') !== false || stripos($name, 'Y Dược Cần Thơ') !== false) {
+        return 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRUed7lW_iE0g1ImT9gSZmy0PdfBiewVl5obQ&s';
+    }
+    if (stripos($name, 'Đa khoa Trung ương') !== false || stripos($name, 'Trung ương') !== false) {
+        return 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSlTz_v9XDRvF_FcHXFdA0GicixowqlMdgmQg&s';
+    }
+    if (!empty($hospital['logo_url'])) {
+        $logoUrl = $hospital['logo_url'];
+        if (preg_match('#^https?://#', $logoUrl) || file_exists(__DIR__ . '/' . ltrim($logoUrl, '/'))) {
+            return homepageImageSrc($logoUrl, '');
+        }
+    }
+    if (stripos($name, 'Da liễu') !== false || stripos($name, 'Da Liễu') !== false) {
+        return 'https://benhviendalieucantho.vn/upload/image/logo/logobvdl.png';
+    }
+    if (stripos($name, 'Nhi đồng') !== false) {
+        return 'https://cdn.haitrieu.com/wp-content/uploads/2022/09/logo-benh-vien-nhi-dong-can-tho-1024x1024.png';
+    }
+    if (stripos($name, 'Hoàng Mỹ') !== false || stripos($name, 'Hoàn Mỹ') !== false) {
+        return $GLOBALS['base_url'] . '/uploads/hospitals/hoanmy_cuulong_logo.webp';
+    }
+    return 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/No_image_available.svg/512px-No_image_available.svg.png';
+}
+
 function homepageImageSrc($path, $fallback) {
     if (empty($path)) {
         return $fallback;
     }
     return preg_match('#^https?://#', $path) ? $path : $GLOBALS['base_url'] . '/' . $path;
+}
+
+function homepagePackageImage($package) {
+    if (!empty($package['icon_path'])) {
+        return homepageImageSrc($package['icon_path'], '');
+    }
+    return homepageHospitalLogo(['name' => $package['hospital_name'] ?? '', 'logo_url' => $package['logo_url'] ?? '']);
+}
+
+function homepagePackageLink($package) {
+    return 'lab_package_booking.php?package_id=' . (int)$package['id'];
 }
 ?>
 
@@ -179,7 +262,7 @@ function homepageImageSrc($path, $fallback) {
             </div>
         </a>
         <!-- Item 5 -->
-        <a href="#" class="text-decoration-none flex-shrink-0" style="width: 140px;">
+        <a href="after_hours_booking.php" class="text-decoration-none flex-shrink-0" style="width: 140px;">
             <div class="card shadow-sm h-100 border-0 rounded-4 feature-card text-center">
                 <div class="card-body p-3">
                     <img src="https://img.icons8.com/color/48/clock--v1.png" alt="Đặt khám ngoài giờ" width="45" height="45" class="mb-2 d-block mx-auto">
@@ -187,26 +270,8 @@ function homepageImageSrc($path, $fallback) {
                 </div>
             </div>
         </a>
-        <!-- Item 6 -->
-        <a href="#" class="text-decoration-none flex-shrink-0" style="width: 140px;">
-            <div class="card shadow-sm h-100 border-0 rounded-4 feature-card text-center">
-                <div class="card-body p-3">
-                    <img src="https://img.icons8.com/fluency/48/trust.png" alt="Giúp việc cá nhân" width="45" height="45" class="mb-2 d-block mx-auto">
-                    <h6 class="card-title fw-bold text-dark mb-0 fs-6">Giúp việc<br>cá nhân</h6>
-                </div>
-            </div>
-        </a>
-        <!-- Item 7 -->
-        <a href="#" class="text-decoration-none flex-shrink-0" style="width: 140px;">
-            <div class="card shadow-sm h-100 border-0 rounded-4 feature-card text-center">
-                <div class="card-body p-3">
-                    <img src="https://img.icons8.com/color/48/organization.png" alt="Khám doanh nghiệp" width="45" height="45" class="mb-2 d-block mx-auto">
-                    <h6 class="card-title fw-bold text-dark mb-0 fs-6">Khám doanh<br>nghiệp</h6>
-                </div>
-            </div>
-        </a>
         <!-- Item 8 -->
-        <a href="#" class="text-decoration-none flex-shrink-0" style="width: 140px;">
+        <a href="doctor_booking.php" class="text-decoration-none flex-shrink-0" style="width: 140px;">
             <div class="card shadow-sm h-100 border-0 rounded-4 feature-card text-center">
                 <div class="card-body p-3">
                     <img src="https://img.icons8.com/color/48/stethoscope.png" alt="Đặt khám theo bác sĩ" width="45" height="45" class="mb-2 d-block mx-auto">
@@ -215,7 +280,7 @@ function homepageImageSrc($path, $fallback) {
             </div>
         </a>
         <!-- Item 9 -->
-        <a href="#" class="text-decoration-none flex-shrink-0" style="width: 140px;">
+        <a href="imaging_booking.php" class="text-decoration-none flex-shrink-0" style="width: 140px;">
             <div class="card shadow-sm h-100 border-0 rounded-4 feature-card text-center">
                 <div class="card-body p-3">
                     <img src="https://cdn-icons-png.flaticon.com/128/11831/11831343.png" alt="Chụp phim & Nội soi" width="45" height="45" class="mb-2 d-block mx-auto">
@@ -224,7 +289,7 @@ function homepageImageSrc($path, $fallback) {
             </div>
         </a>
         <!-- Item 10 -->
-        <a href="#" class="text-decoration-none flex-shrink-0" style="width: 140px;">
+        <a href="health_package_booking.php" class="text-decoration-none flex-shrink-0" style="width: 140px;">
             <div class="card shadow-sm h-100 border-0 rounded-4 feature-card text-center">
                 <div class="card-body p-3">
                     <img src="https://img.icons8.com/color/48/heart-health.png" alt="Gói khám sức khỏe" width="45" height="45" class="mb-2 d-block mx-auto">
@@ -233,7 +298,7 @@ function homepageImageSrc($path, $fallback) {
             </div>
         </a>
         <!-- Item 11 -->
-        <a href="#" class="text-decoration-none flex-shrink-0" style="width: 140px;">
+        <a href="home_care_booking.php" class="text-decoration-none flex-shrink-0" style="width: 140px;">
             <div class="card shadow-sm h-100 border-0 rounded-4 feature-card text-center">
                 <div class="card-body p-3">
                     <img src="https://img.icons8.com/color/48/home.png" alt="Y tế tại nhà" width="45" height="45" class="mb-2 d-block mx-auto">
@@ -242,7 +307,7 @@ function homepageImageSrc($path, $fallback) {
             </div>
         </a>
         <!-- Item 12 -->
-        <a href="#" class="text-decoration-none flex-shrink-0" style="width: 140px;">
+        <a href="vaccination_booking.php" class="text-decoration-none flex-shrink-0" style="width: 140px;">
             <div class="card shadow-sm h-100 border-0 rounded-4 feature-card text-center">
                 <div class="card-body p-3">
                     <img src="https://img.icons8.com/color/48/syringe.png" alt="Đặt lịch tiêm chủng" width="45" height="45" class="mb-2 d-block mx-auto">
@@ -251,7 +316,7 @@ function homepageImageSrc($path, $fallback) {
             </div>
         </a>
         <!-- Item 13 -->
-        <a href="#" class="text-decoration-none flex-shrink-0" style="width: 140px;">
+        <a href="health_circular_booking.php" class="text-decoration-none flex-shrink-0" style="width: 140px;">
             <div class="card shadow-sm h-100 border-0 rounded-4 feature-card text-center">
                 <div class="card-body p-3">
                     <img src="https://img.icons8.com/color/48/document.png" alt="Khám sức khỏe thông tư" width="45" height="45" class="mb-2 d-block mx-auto">
@@ -260,7 +325,7 @@ function homepageImageSrc($path, $fallback) {
             </div>
         </a>
         <!-- Item 14 -->
-        <a href="#" class="text-decoration-none flex-shrink-0" style="width: 140px;">
+        <a href="https://www.nhathuocankhang.com/?utm_source=web&utm_medium=card&utm_campaign=medpro_ankhang&utm_content=feature_card_homepage#voucher-medpro" class="text-decoration-none flex-shrink-0" style="width: 140px;" target="_blank" rel="noopener">
             <div class="card shadow-sm h-100 border-0 rounded-4 feature-card text-center">
                 <div class="card-body p-3">
                     <img src="https://img.icons8.com/color/48/pills.png" alt="Mua thuốc An Khang" width="45" height="45" class="mb-2 d-block mx-auto">
@@ -302,10 +367,10 @@ function homepageImageSrc($path, $fallback) {
         <div id="partnersScroll" class="d-flex overflow-auto flex-nowrap py-3 px-3 scrollbar-hide gap-5 align-items-start" style="scroll-behavior: smooth;">
             <?php foreach ($partnerHospitals as $partner): ?>
                 <a href="facility_detail.php?id=<?php echo (int)$partner['id']; ?>" class="text-decoration-none flex-shrink-0 text-center" style="width: 170px;">
-                    <div class="bg-white rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center p-2" style="width: 90px; height: 90px; border: 1px solid #d4d4d4;">
-                        <img src="<?php echo htmlspecialchars(homepageImageSrc($partner['logo_url'] ?? '', 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/No_image_available.svg/512px-No_image_available.svg.png')); ?>" alt="<?php echo htmlspecialchars($partner['name']); ?>" class="img-fluid" style="max-height: 65px;">
+                    <div class="rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center p-2 shadow-sm" style="width: 96px; height: 96px; border: 1px solid #c7e7ff; background: linear-gradient(135deg, #eaf8ff 0%, #d7f0ff 100%);">
+                        <img src="<?php echo htmlspecialchars(homepageHospitalLogo($partner)); ?>" alt="<?php echo htmlspecialchars($partner['name']); ?>" class="img-fluid" style="max-width: 76px; max-height: 76px; object-fit: contain;" onerror="this.onerror=null;this.src='https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/No_image_available.svg/512px-No_image_available.svg.png';">
                     </div>
-                    <p class="text-dark mb-0 fw-medium" style="font-size: 0.95rem;"><?php echo htmlspecialchars($partner['name']); ?> <i class="bi bi-check-circle-fill text-primary ms-1"></i></p>
+                    <p class="text-dark mb-0 fw-medium" style="font-size: 0.95rem;"><?php echo htmlspecialchars(stripos($partner['name'], 'MEDLATEC') !== false ? 'Bệnh viện Đa khoa MEDLATEC' : trim(preg_replace('/\s*-\s*Dịch vụ y tế tại nhà\s*$/u', '', $partner['name']))); ?> <i class="bi bi-check-circle-fill text-primary ms-1"></i></p>
                 </a>
             <?php endforeach; ?>
 
@@ -378,10 +443,10 @@ function homepageImageSrc($path, $fallback) {
     <div id="facilitiesScroll" class="d-flex overflow-auto flex-nowrap py-3 px-1 scrollbar-hide gap-4" style="scroll-behavior: smooth;">
         <?php if (count($featuredHospitals) > 0): ?>
             <?php foreach ($featuredHospitals as $hospital): ?>
-                <div class="flex-shrink-0" style="width: 290px;">
+            <div class="flex-shrink-0 healthcare-package-card" data-category="<?php echo htmlspecialchars($package['category'] ?? 'health'); ?>" style="width: 290px;">
                     <div class="card card-premium h-100 border-0 d-flex flex-column">
                         <div class="d-flex align-items-center justify-content-center bg-white pt-4 pb-2" style="height: 180px; border-radius: 20px 20px 0 0;">
-                            <img src="<?php echo htmlspecialchars(homepageImageSrc($hospital['logo_url'] ?? '', 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/No_image_available.svg/512px-No_image_available.svg.png')); ?>" class="img-fluid" alt="<?php echo htmlspecialchars($hospital['name']); ?>" style="max-height: 140px; object-fit: contain;">
+                            <img src="<?php echo htmlspecialchars(homepageHospitalLogo($hospital)); ?>" class="img-fluid" alt="<?php echo htmlspecialchars($hospital['name']); ?>" style="max-height: 140px; object-fit: contain;" onerror="this.onerror=null;this.src='<?php echo $base_url; ?>/uploads/hospitals/hoanmy_cuulong_logo.webp';">
                         </div>
                         <div class="card-body p-3 d-flex flex-column bg-white border-top">
                             <h6 class="card-title fw-bold text-dark mb-2" style="font-size: 1rem; color: #023f6d !important;"><?php echo htmlspecialchars($hospital['name']); ?> <i class="bi bi-check-circle-fill text-primary ms-1" style="font-size: 0.85rem;"></i></h6>
@@ -414,9 +479,9 @@ function homepageImageSrc($path, $fallback) {
     
     <!-- Tabs -->
     <div class="col-12 d-flex justify-content-center gap-2 gap-md-4 mb-4">
-        <button class="btn btn-premium-primary rounded-pill px-4 py-2 fw-bold">Sức khỏe</button>
-        <button class="btn btn-premium-outline rounded-pill px-4 py-2 fw-bold">Xét nghiệm</button>
-        <button class="btn btn-premium-outline rounded-pill px-4 py-2 fw-bold">Tiêm chủng</button>
+        <button type="button" class="btn btn-premium-primary rounded-pill px-4 py-2 fw-bold healthcare-tab" data-category="health" data-link="health_package_booking.php">Sức khỏe</button>
+        <button type="button" class="btn btn-premium-outline rounded-pill px-4 py-2 fw-bold healthcare-tab" data-category="lab" data-link="lab_booking.php">Xét nghiệm</button>
+        <button type="button" class="btn btn-premium-outline rounded-pill px-4 py-2 fw-bold healthcare-tab" data-category="vaccination" data-link="vaccination_booking.php">Tiêm chủng</button>
     </div>
 
     <!-- Left Button -->
@@ -425,81 +490,25 @@ function homepageImageSrc($path, $fallback) {
     </button>
 
     <div id="healthcareScroll" class="d-flex overflow-auto flex-nowrap py-3 px-2 scrollbar-hide gap-4 w-100" style="scroll-behavior: smooth;">
-        <!-- Card 1 -->
-        <div class="flex-shrink-0" style="width: 290px;">
-            <div class="card card-premium h-100 border-0 d-flex flex-column bg-white">
-                <img src="https://images.unsplash.com/photo-1579684385127-1ef15d508118?q=80&w=640" class="w-100 object-fit-cover" style="height: 180px; border-radius: 20px 20px 0 0;" alt="Bệnh Tiêu Hoá - Gan Mật">
-                <div class="card-body p-3 d-flex flex-column bg-white">
-                    <h6 class="card-title fw-bold mb-3" style="color: #023f6d !important; font-size: 1.05rem; min-height: 48px; line-height: 1.4;">Đặt khám Bệnh Tiêu Hoá - Gan Mật</h6>
-                    <div class="text-secondary small fw-medium mb-3" style="min-height: 40px;">
-                        <i class="bi bi-hospital text-muted"></i> Trung Tâm Nội Soi Tiêu Hoá Doctor Check <i class="bi bi-patch-check-fill text-primary ms-1"></i>
+        <?php foreach ($homepagePackages as $package): ?>
+            <div class="flex-shrink-0 healthcare-package-card" data-category="<?php echo htmlspecialchars($package['category'] ?? 'health'); ?>" style="width: 290px;">
+                <div class="card card-premium h-100 border-0 d-flex flex-column bg-white">
+                    <div class="bg-white d-flex align-items-center justify-content-center" style="height:180px; border-radius:20px 20px 0 0; overflow:hidden;">
+                        <img src="<?php echo htmlspecialchars(homepagePackageImage($package)); ?>" class="w-100 h-100" style="object-fit:contain; padding:18px;" alt="<?php echo htmlspecialchars($package['name']); ?>" onerror="this.onerror=null;this.src='https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/No_image_available.svg/512px-No_image_available.svg.png';">
                     </div>
-                    <div class="fw-bold mb-3" style="color: #f7941d; font-size: 1.05rem;">
-                        <span class="border rounded-circle d-inline-flex justify-content-center align-items-center me-1" style="width: 20px; height: 20px; border-color: #f7941d !important; font-size: 0.8rem;"><i class="bi bi-currency-dollar"></i></span> 200.000đ
-                    </div>
-                    <div class="mt-auto">
-                        <a href="#" class="btn btn-premium-primary w-100 py-2">Đặt khám ngay</a>
+                    <div class="card-body p-3 d-flex flex-column bg-white">
+                        <h6 class="card-title fw-bold mb-3" style="color:#023f6d !important; font-size:1.05rem; min-height:48px; line-height:1.4;"><?php echo htmlspecialchars($package['name']); ?></h6>
+                        <div class="text-secondary small fw-medium mb-3" style="min-height:40px;"><i class="bi bi-hospital text-muted"></i> <?php echo htmlspecialchars($package['hospital_name']); ?> <i class="bi bi-patch-check-fill text-primary ms-1"></i></div>
+                        <div class="fw-bold mb-3" style="color:#f7941d; font-size:1.05rem;"><span class="border rounded-circle d-inline-flex justify-content-center align-items-center me-1" style="width:20px;height:20px;border-color:#f7941d !important;font-size:.8rem;"><i class="bi bi-currency-dollar"></i></span> <?php echo (float)$package['price'] > 0 ? number_format((float)$package['price'], 0, ',', '.') . 'đ' : 'Đang cập nhật'; ?></div>
+                        <div class="mt-auto"><a href="<?php echo htmlspecialchars(homepagePackageLink($package)); ?>" class="btn btn-premium-primary w-100 py-2">Đặt khám ngay</a></div>
                     </div>
                 </div>
             </div>
-        </div>
-
-        <!-- Card 2 -->
-        <div class="flex-shrink-0" style="width: 290px;">
-            <div class="card card-premium h-100 border-0 d-flex flex-column bg-white">
-                <img src="https://images.unsplash.com/photo-1587834571871-331da2f5b5f6?q=80&w=640" class="w-100 object-fit-cover" style="height: 180px; border-radius: 20px 20px 0 0;" alt="Gói khám mắt tổng quát">
-                <div class="card-body p-3 d-flex flex-column bg-white">
-                    <h6 class="card-title fw-bold mb-3" style="color: #023f6d !important; font-size: 1.05rem; min-height: 48px; line-height: 1.4;">Gói khám mắt tổng quát</h6>
-                    <div class="text-secondary small fw-medium mb-3" style="min-height: 40px;">
-                        <i class="bi bi-hospital text-muted"></i> Trung Tâm Mắt Quốc Tế Phương Đông
-                    </div>
-                    <div class="fw-bold mb-3" style="color: #f7941d; font-size: 1.05rem;">
-                        <span class="border rounded-circle d-inline-flex justify-content-center align-items-center me-1" style="width: 20px; height: 20px; border-color: #f7941d !important; font-size: 0.8rem;"><i class="bi bi-currency-dollar"></i></span> 500.000đ
-                    </div>
-                    <div class="mt-auto">
-                        <a href="#" class="btn btn-premium-primary w-100 py-2">Đặt khám ngay</a>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Card 3 -->
-        <div class="flex-shrink-0" style="width: 290px;">
-            <div class="card card-premium h-100 border-0 d-flex flex-column bg-white">
-                <img src="https://images.unsplash.com/photo-1505751172876-fa1923c5c528?q=80&w=640" class="w-100 object-fit-cover" style="height: 180px; border-radius: 20px 20px 0 0;" alt="Gói khám tiểu đường">
-                <div class="card-body p-3 d-flex flex-column bg-white">
-                    <h6 class="card-title fw-bold mb-3" style="color: #023f6d !important; font-size: 1.05rem; min-height: 48px; line-height: 1.4;">Gói khám tiểu đường</h6>
-                    <div class="text-secondary small fw-medium mb-3" style="min-height: 40px;">
-                        <i class="bi bi-hospital text-muted"></i> Phòng Khám Đa khoa Quốc Tế Golden Healthcare
-                    </div>
-                    <div class="fw-bold mb-3" style="color: #f7941d; font-size: 1.05rem;">
-                        <span class="border rounded-circle d-inline-flex justify-content-center align-items-center me-1" style="width: 20px; height: 20px; border-color: #f7941d !important; font-size: 0.8rem;"><i class="bi bi-currency-dollar"></i></span> 720.000đ
-                    </div>
-                    <div class="mt-auto">
-                        <a href="#" class="btn btn-premium-primary w-100 py-2">Đặt khám ngay</a>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Card 4 -->
-        <div class="flex-shrink-0" style="width: 290px;">
-            <div class="card card-premium h-100 border-0 d-flex flex-column bg-white">
-                <img src="https://images.unsplash.com/photo-1521791136064-7986c2920216?q=80&w=640" class="w-100 object-fit-cover" style="height: 180px; border-radius: 20px 20px 0 0;" alt="Khám sức khỏe xin việc">
-                <div class="card-body p-3 d-flex flex-column bg-white">
-                    <h6 class="card-title fw-bold mb-3" style="color: #023f6d !important; font-size: 1.05rem; min-height: 48px; line-height: 1.4;">Khám sức khỏe xin việc</h6>
-                    <div class="text-secondary small fw-medium mb-3" style="min-height: 40px;">
-                        <i class="bi bi-hospital text-muted"></i> Phòng Khám Đa Khoa Pháp Anh
-                    </div>
-                    <div class="fw-bold mb-3" style="color: #f7941d; font-size: 1.05rem;">
-                        <span class="border rounded-circle d-inline-flex justify-content-center align-items-center me-1" style="width: 20px; height: 20px; border-color: #f7941d !important; font-size: 0.8rem;"><i class="bi bi-currency-dollar"></i></span> 380.000đ
-                    </div>
-                    <div class="mt-auto">
-                        <a href="#" class="btn btn-premium-primary w-100 py-2">Đặt khám ngay</a>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <?php endforeach; ?>
+        <?php if (count($homepagePackages) === 0): ?>
+            <div class="w-100 text-center text-muted py-4">Chưa có gói chăm sóc sức khỏe.</div>
+        <?php endif; ?>
+        <div id="healthcareEmpty" class="w-100 text-center text-muted py-4 d-none">Chưa có gói phù hợp.</div>
     </div>
 
     <!-- Right Button -->
@@ -509,7 +518,7 @@ function homepageImageSrc($path, $fallback) {
 
     <!-- Nút Xem tất cả -->
     <div class="col-12 text-center mt-4">
-        <a href="#" class="btn btn-outline-primary rounded-pill px-4 py-2 fw-bold" style="border-width: 2px;">Xem tất cả <i class="bi bi-arrow-right ms-1"></i></a>
+        <a href="health_package_booking.php" id="healthcareViewAll" class="btn btn-outline-primary rounded-pill px-4 py-2 fw-bold" style="border-width: 2px;">Xem tất cả <i class="bi bi-arrow-right ms-1"></i></a>
     </div>
 </div>
 
@@ -1138,6 +1147,34 @@ document.addEventListener("DOMContentLoaded", function() {
             }
         });
     }
+
+    const healthcareTabs = document.querySelectorAll('.healthcare-tab');
+    const healthcareCards = document.querySelectorAll('.healthcare-package-card');
+    const healthcareEmpty = document.getElementById('healthcareEmpty');
+    const healthcareViewAll = document.getElementById('healthcareViewAll');
+    function filterHealthcare(category, link) {
+        let visibleCount = 0;
+        healthcareCards.forEach(function (card) {
+            const show = card.dataset.category === category;
+            card.classList.toggle('d-none', !show);
+            if (show) visibleCount++;
+        });
+        healthcareEmpty?.classList.toggle('d-none', visibleCount > 0);
+        if (healthcareViewAll && link) healthcareViewAll.href = link;
+        document.getElementById('healthcareScroll')?.scrollTo({left: 0, behavior: 'smooth'});
+    }
+    healthcareTabs.forEach(function (tab) {
+        tab.addEventListener('click', function () {
+            healthcareTabs.forEach(function (item) {
+                item.classList.remove('btn-premium-primary');
+                item.classList.add('btn-premium-outline');
+            });
+            this.classList.add('btn-premium-primary');
+            this.classList.remove('btn-premium-outline');
+            filterHealthcare(this.dataset.category, this.dataset.link);
+        });
+    });
+    filterHealthcare('health', 'health_package_booking.php');
 });
 </script>
 

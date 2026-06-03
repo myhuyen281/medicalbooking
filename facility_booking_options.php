@@ -38,6 +38,15 @@ try {
                     ORDER BY f.sort_order ASC, f.id ASC");
         $db->bind(':hospital_id', $hospital['id']);
         $bookingForms = $db->resultSet();
+        try {
+            $db->query("SELECT lp.* FROM lab_packages lp WHERE lp.hospital_id = :hospital_id AND lp.is_active = 1 ORDER BY FIELD(lp.category, 'lab', 'imaging', 'vaccination'), lp.id ASC");
+            $db->bind(':hospital_id', $hospital['id']);
+            $packageRows = $db->resultSet();
+            $packageIcons = ['lab' => 'bi-clipboard2-pulse', 'imaging' => 'bi-camera', 'vaccination' => 'bi-eyedropper'];
+            foreach ($packageRows as $packageRow) {
+                $bookingForms[] = ['id' => 0, 'name' => $packageRow['name'], 'icon' => $packageRow['icon_path'] ?? '', 'service_icon' => $packageIcons[$packageRow['category'] ?? 'lab'] ?? 'bi-calendar-check', 'package_id' => (int)$packageRow['id'], 'is_package' => 1];
+            }
+        } catch (Exception $e) {}
     }
 } catch (Exception $e) {
 $bookingForms = [];
@@ -62,7 +71,7 @@ $bookingForms = [];
         <?php if (count($bookingForms) > 0): ?>
             <?php foreach ($bookingForms as $form): ?>
                 <?php
-                    $serviceLink = 'specialty_booking.php?facility=' . urlencode($facilityName) . '&booking_form_id=' . (int)$form['id'];
+                    $serviceLink = !empty($form['is_package']) ? 'lab_package_booking.php?package_id=' . (int)$form['package_id'] : 'specialty_booking.php?facility=' . urlencode($facilityName) . '&booking_form_id=' . (int)$form['id'];
                     $cardTitle = $form['name'];
                     $cardIcon = !empty($form['service_icon']) ? $form['service_icon'] : 'bi-calendar-check';
                 ?>

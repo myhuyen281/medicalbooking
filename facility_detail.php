@@ -9,7 +9,7 @@ try {
 } catch (Exception $e) {
 }
 $facilityId = $_GET['id'] ?? null;
-$facilityName = $_GET['name'] ?? 'Bệnh viện Nhi đồng Thành phố Cần Thơ';
+$facilityName = $_GET['name'] ?? '';
 
 if ($facilityId) {
     $db->query("SELECT * FROM hospitals WHERE id = :id");
@@ -27,16 +27,8 @@ if ($facilityId) {
 $facility = $db->single();
 
 if (!$facility) {
-    $facility = [
-        'name' => $facilityName,
-        'logo_url' => 'https://cdn.haitrieu.com/wp-content/uploads/2022/09/logo-benh-vien-nhi-dong-can-tho-1024x1024.png',
-        'poster_url' => 'https://media-cdn-v2.laodong.vn/storage/newsportal/2023/7/23/1219994/Benh-Vien-Nhi-Dong-Ca.jpeg',
-        'rating' => '4.5',
-        'address' => 'Số 345 Nguyễn Văn Cừ, Phường An Bình, Thành phố Cần Thơ',
-        'working_time' => 'Thứ 2 - Thứ 7 (07:00-17:00)',
-        'phone' => '19002115',
-        'description' => ''
-    ];
+    header('Location: facilities.php');
+    exit;
 }
 
 function facilityImageSrc($path, $base_url) {
@@ -46,8 +38,8 @@ function facilityImageSrc($path, $base_url) {
     return preg_match('#^https?://#', $path) ? $path : $base_url . '/' . $path;
 }
 
-$logo = !empty($facility['logo_url']) ? $facility['logo_url'] : 'https://cdn.haitrieu.com/wp-content/uploads/2022/09/logo-benh-vien-nhi-dong-can-tho-1024x1024.png';
-$poster = !empty($facility['poster_url']) ? $facility['poster_url'] : 'https://media-cdn-v2.laodong.vn/storage/newsportal/2023/7/23/1219994/Benh-Vien-Nhi-Dong-Ca.jpeg';
+$logo = !empty($facility['logo_url']) ? $facility['logo_url'] : '';
+$poster = !empty($facility['poster_url']) ? $facility['poster_url'] : '';
 $banners = [];
 $bookingForms = [];
 if (!empty($facility['id'])) {
@@ -58,6 +50,22 @@ if (!empty($facility['id'])) {
     $db->query("SELECT * FROM hospital_booking_forms WHERE hospital_id = :hospital_id ORDER BY sort_order ASC, id ASC");
     $db->bind(':hospital_id', $facility['id']);
     $bookingForms = $db->resultSet();
+    try {
+        $db->query("SELECT * FROM lab_packages WHERE hospital_id = :hospital_id AND is_active = 1 ORDER BY FIELD(category, 'lab', 'imaging', 'vaccination'), id ASC");
+        $db->bind(':hospital_id', $facility['id']);
+        $packageRows = $db->resultSet();
+        $packageIcons = ['lab' => 'bi-clipboard2-pulse', 'imaging' => 'bi-camera', 'vaccination' => 'bi-eyedropper'];
+        foreach ($packageRows as $packageRow) {
+            $bookingForms[] = [
+                'id' => 0,
+                'name' => $packageRow['name'],
+                'icon' => $packageRow['icon_path'] ?? '',
+                'service_icon' => $packageIcons[$packageRow['category'] ?? 'lab'] ?? 'bi-calendar-check',
+                'package_id' => (int)$packageRow['id'],
+                'is_package' => 1
+            ];
+        }
+    } catch (Exception $e) {}
 }
 $serviceImage = ($facility['service_image_url'] ?? '') ?: ($facility['content_image_url'] ?? '') ?: ($banners[0]['image_path'] ?? '') ?: $poster;
 $rating = null;
@@ -156,12 +164,15 @@ if (!empty($facility['id'])) {
                 <div class="d-flex flex-wrap justify-content-center gap-4">
                     <?php if (count($bookingForms) > 0): ?>
                         <?php foreach ($bookingForms as $form): ?>
-                            <?php $serviceLink = ($form['target'] ?? 'specialty') === 'doctor' ? 'doctors.php?hospital_id=' . (int)($facility['id'] ?? 0) : 'specialty_booking.php?id=' . (int)($facility['id'] ?? 0) . '&facility=' . urlencode($facility['name']) . '&booking_form_id=' . (int)$form['id']; ?>
+                            <?php
+                                $serviceLink = !empty($form['is_package']) ? 'lab_package_booking.php?package_id=' . (int)$form['package_id'] : ((($form['target'] ?? 'specialty') === 'doctor') ? 'doctors.php?hospital_id=' . (int)($facility['id'] ?? 0) : 'specialty_booking.php?id=' . (int)($facility['id'] ?? 0) . '&facility=' . urlencode($facility['name']) . '&booking_form_id=' . (int)$form['id']);
+                                $serviceIcon = !empty($form['service_icon']) ? $form['service_icon'] : 'bi-calendar2-check';
+                            ?>
                             <a href="<?php echo htmlspecialchars($serviceLink); ?>" class="text-decoration-none text-center border rounded-4 p-3" style="width:150px; color:#023f6d;">
                                 <?php if (!empty($form['icon']) && strpos($form['icon'], 'bi-') !== 0): ?>
                                     <img src="<?php echo htmlspecialchars($base_url . '/' . $form['icon']); ?>" alt="<?php echo htmlspecialchars($form['name']); ?>" style="width: 46px; height: 46px; object-fit: contain;">
                                 <?php else: ?>
-                                    <i class="bi bi-calendar2-check fs-1" style="color:#00b5f1;"></i>
+                                    <i class="bi <?php echo htmlspecialchars($serviceIcon); ?> fs-1" style="color:#00b5f1;"></i>
                                 <?php endif; ?>
                                 <div class="fw-semibold mt-2"><?php echo htmlspecialchars($form['name']); ?></div>
                             </a>

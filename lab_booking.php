@@ -5,7 +5,7 @@ include 'includes/header.php';
 $db = new Database();
 $keyword = trim($_GET['q'] ?? '');
 $province = trim($_GET['province'] ?? '');
-$where = "WHERE lp.is_active = 1";
+$where = "WHERE lp.is_active = 1 AND COALESCE(lp.category, 'lab') = 'lab'";
 $params = [];
 if ($keyword !== '') {
     $where .= " AND (lp.name LIKE :keyword OR h.name LIKE :keyword OR lps.name LIKE :keyword)";
@@ -43,9 +43,44 @@ try {
 } catch (Exception $e) {
     $packages = [];
 }
+$showAll = isset($_GET['all']) && $_GET['all'] === '1';
+$totalPackages = count($packages);
+$perPage = 6;
+$totalPages = max(1, (int)ceil($totalPackages / $perPage));
+$page = max(1, min($totalPages, (int)($_GET['page'] ?? 1)));
+if (!$showAll) {
+    $packages = array_slice($packages, ($page - 1) * $perPage, $perPage);
+}
+function labPageUrl($page = null, $all = false) {
+    $query = $_GET;
+    if ($all) {
+        $query['all'] = '1';
+        unset($query['page']);
+    } else {
+        unset($query['all']);
+        $query['page'] = $page;
+    }
+    return 'lab_booking.php?' . http_build_query($query);
+}
 function labImage($path, $base_url) {
     if (empty($path)) return 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/No_image_available.svg/512px-No_image_available.svg.png';
     return preg_match('#^https?://#', $path) ? $path : $base_url . '/' . $path;
+}
+function labLogo($package, $base_url) {
+    if (!empty($package['icon_path'])) {
+        return labImage($package['icon_path'], $base_url);
+    }
+    $name = $package['hospital_name'] ?? '';
+    if (stripos($name, 'MEDLATEC') !== false) {
+        return $base_url . '/uploads/hospitals/medlatec_cantho_logo.png';
+    }
+    if (stripos($name, 'DIAG') !== false) {
+        return $base_url . '/uploads/hospitals/diag_logo.svg';
+    }
+    if (stripos($name, 'MEDIC') !== false) {
+        return $base_url . '/uploads/hospitals/medic_logo.jpg';
+    }
+    return labImage($package['logo_url'] ?? '', $base_url);
 }
 ?>
 
@@ -90,7 +125,7 @@ function labImage($path, $base_url) {
                 <div class="col-lg-6">
                     <div class="card border-0 shadow-sm rounded-4 h-100">
                         <div class="card-body p-4 d-flex gap-3 align-items-start">
-                            <img src="<?php echo htmlspecialchars(labImage($package['logo_url'] ?? '', $base_url)); ?>" alt="<?php echo htmlspecialchars($package['hospital_name']); ?>" style="width:90px;height:90px;object-fit:contain;">
+                            <img src="<?php echo htmlspecialchars(labLogo($package, $base_url)); ?>" alt="<?php echo htmlspecialchars($package['hospital_name']); ?>" style="width:90px;height:90px;object-fit:contain;" onerror="this.onerror=null;this.src='https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/No_image_available.svg/512px-No_image_available.svg.png';">
                             <div class="flex-fill">
                                 <h5 class="fw-bold mb-2" style="color:#023f6d;"><?php echo htmlspecialchars($package['name']); ?></h5>
                                 <div class="text-muted small mb-2"><i class="bi bi-hospital text-info"></i> <?php echo htmlspecialchars($package['hospital_name']); ?></div>
@@ -112,6 +147,31 @@ function labImage($path, $base_url) {
                 <div class="col-12"><div class="bg-white rounded-4 shadow-sm p-5 text-center text-muted">Chưa có gói xét nghiệm phù hợp.</div></div>
             <?php endif; ?>
         </div>
+
+        <?php if (!$showAll && $totalPages > 1): ?>
+            <nav class="mt-4" aria-label="Phân trang gói xét nghiệm">
+                <ul class="pagination justify-content-center align-items-center gap-2 mb-0">
+                    <li class="page-item <?php echo $page <= 1 ? 'disabled' : ''; ?>">
+                        <a class="page-link rounded-3 border-0 shadow-sm" href="<?php echo $page > 1 ? htmlspecialchars(labPageUrl($page - 1)) : '#'; ?>">‹</a>
+                    </li>
+                    <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+                        <?php if ($i <= 5 || $i === $totalPages || abs($i - $page) <= 1): ?>
+                            <li class="page-item <?php echo $i === $page ? 'active' : ''; ?>">
+                                <a class="page-link rounded-3 border-0 shadow-sm fw-bold" href="<?php echo htmlspecialchars(labPageUrl($i)); ?>"><?php echo $i; ?></a>
+                            </li>
+                        <?php elseif ($i === 6): ?>
+                            <li class="page-item disabled"><span class="page-link border-0 bg-transparent text-muted">...</span></li>
+                        <?php endif; ?>
+                    <?php endfor; ?>
+                    <li class="page-item <?php echo $page >= $totalPages ? 'disabled' : ''; ?>">
+                        <a class="page-link rounded-3 border-0 shadow-sm" href="<?php echo $page < $totalPages ? htmlspecialchars(labPageUrl($page + 1)) : '#'; ?>">›</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link rounded-3 border-0 shadow-sm fw-bold px-4" href="<?php echo htmlspecialchars(labPageUrl(null, true)); ?>">Xem tất cả</a>
+                    </li>
+                </ul>
+            </nav>
+        <?php endif; ?>
     </div>
 </div>
 

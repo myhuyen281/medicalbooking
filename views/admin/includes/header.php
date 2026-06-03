@@ -19,6 +19,7 @@ $hospitalAllowedPaths = [
     '/views/admin/schedules/services.php',
     '/views/admin/schedules/booking_forms.php',
     '/views/admin/schedules/lab_packages.php',
+    '/views/admin/schedules/lab_package_services.php',
     '/views/admin/appointments/index.php',
     '/views/admin/hospital_profile.php'
 ];
@@ -409,7 +410,13 @@ if ($isHospitalAdmin && !in_array($currentPath, $hospitalAllowedPaths)) {
             
             <a href="<?php echo $base_url; ?>/views/admin/schedules/index.php" class="<?php echo (strpos($currentPath, '/schedules/index.php') !== false || strpos($currentPath, '/schedules/create.php') !== false) ? 'active' : ''; ?>"><i class="bi bi-calendar-plus"></i> Quản lý Lịch khám</a>
             <a href="<?php echo $base_url; ?>/views/admin/schedules/booking_forms.php" class="<?php echo (strpos($currentPath, '/schedules/booking_forms.php') !== false || strpos($currentPath, '/schedules/services.php') !== false) ? 'active' : ''; ?>"><i class="bi bi-grid-3x3-gap"></i> Các hình thức đặt khám</a>
-            <a href="<?php echo $base_url; ?>/views/admin/schedules/lab_packages.php" class="<?php echo (strpos($currentPath, '/schedules/lab_packages.php') !== false) ? 'active' : ''; ?>"><i class="bi bi-clipboard2-pulse"></i> Gói xét nghiệm</a>
+            <?php $packageCategory = $_GET['category'] ?? 'lab'; ?>
+            <a href="<?php echo $base_url; ?>/views/admin/schedules/lab_packages.php?category=lab" class="<?php echo (strpos($currentPath, '/schedules/lab_packages.php') !== false && $packageCategory === 'lab') ? 'active' : ''; ?>"><i class="bi bi-clipboard2-pulse"></i> Gói xét nghiệm</a>
+            <a href="<?php echo $base_url; ?>/views/admin/schedules/lab_packages.php?category=imaging" class="<?php echo (strpos($currentPath, '/schedules/lab_packages.php') !== false && $packageCategory === 'imaging') ? 'active' : ''; ?>"><i class="bi bi-camera"></i> Gói chụp phim nội soi</a>
+            <a href="<?php echo $base_url; ?>/views/admin/schedules/lab_packages.php?category=vaccination" class="<?php echo (strpos($currentPath, '/schedules/lab_packages.php') !== false && $packageCategory === 'vaccination') ? 'active' : ''; ?>"><i class="bi bi-eyedropper"></i> Gói tiêm chủng</a>
+            <a href="<?php echo $base_url; ?>/views/admin/schedules/lab_packages.php?category=health" class="<?php echo (strpos($currentPath, '/schedules/lab_packages.php') !== false && $packageCategory === 'health') ? 'active' : ''; ?>"><i class="bi bi-heart-pulse"></i> Thêm gói khám sức khỏe</a>
+            <a href="<?php echo $base_url; ?>/views/admin/schedules/lab_packages.php?category=circular" class="<?php echo (strpos($currentPath, '/schedules/lab_packages.php') !== false && $packageCategory === 'circular') ? 'active' : ''; ?>"><i class="bi bi-file-medical"></i> Thêm khám sức khỏe thông tư</a>
+            <a href="<?php echo $base_url; ?>/views/admin/schedules/lab_packages.php?category=homecare" class="<?php echo (strpos($currentPath, '/schedules/lab_packages.php') !== false && $packageCategory === 'homecare') ? 'active' : ''; ?>"><i class="bi bi-house-heart"></i> Gói Y tế tại nhà</a>
             <a href="<?php echo $base_url; ?>/views/admin/appointments/index.php" class="<?php echo (strpos($currentPath, '/appointments/') !== false) ? 'active' : ''; ?>"><i class="bi bi-calendar-check"></i> Quản lý Đơn khám</a>
             <hr>
             <a href="<?php echo $base_url; ?>/index.php" target="_blank"><i class="bi bi-box-arrow-up-right"></i> Xem Website</a>

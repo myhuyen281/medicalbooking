@@ -40,7 +40,12 @@ try {
                 LEFT JOIN hospital_banners hb ON hb.hospital_id = h.id
                 {$where}
                 GROUP BY h.id
-                ORDER BY successful_booking_count DESC, avg_rating DESC, h.id DESC");
+                ORDER BY CASE
+                    WHEN h.name LIKE '%Da liễu%' THEN 0
+                    WHEN h.name LIKE '%Nhi đồng%' THEN 1
+                    WHEN h.name LIKE '%Hoàng Mỹ%' THEN 2
+                    ELSE 3
+                END, successful_booking_count DESC, avg_rating DESC, h.id DESC");
     foreach ($params as $param => $value) {
         $db->bind($param, $value);
     }
@@ -49,11 +54,83 @@ try {
     $hospitals = [];
 }
 
+function facilitiesPriorityKey($hospital) {
+    $name = mb_strtolower($hospital['name'] ?? '', 'UTF-8');
+    if (strpos($name, 'medlatec') !== false) {
+        return 'medlatec';
+    }
+    if (strpos($name, 'da liễu') !== false) {
+        return 'da_lieu';
+    }
+    if (strpos($name, 'nhi đồng') !== false) {
+        return 'nhi_dong';
+    }
+    if (strpos($name, 'hoàng mỹ') !== false || strpos($name, 'hoàn mỹ') !== false) {
+        return 'hoan_my';
+    }
+    return '';
+}
+
+function facilitiesDedupeHospitals($hospitals) {
+    $seen = [];
+    $result = [];
+    foreach ($hospitals as $hospital) {
+        $key = facilitiesPriorityKey($hospital);
+        if ($key !== '') {
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+        }
+        $result[] = $hospital;
+    }
+    return $result;
+}
+
+$allHospitals = facilitiesDedupeHospitals($hospitals);
+$totalHospitals = count($allHospitals);
+$perPage = 5;
+$totalPages = max(1, (int)ceil($totalHospitals / $perPage));
+$page = max(1, min($totalPages, (int)($_GET['page'] ?? 1)));
+$hospitals = array_slice($allHospitals, ($page - 1) * $perPage, $perPage);
+
+function facilitiesPageUrl($page) {
+    $query = $_GET;
+    $query['page'] = $page;
+    return 'facilities.php?' . http_build_query($query);
+}
+
 function facilitiesImageSrc($path, $fallback, $base_url) {
     if (empty($path)) {
         return $fallback;
     }
     return preg_match('#^https?://#', $path) ? $path : $base_url . '/' . $path;
+}
+
+function facilitiesHospitalLogo($hospital, $base_url) {
+    $name = $hospital['name'] ?? '';
+    if (stripos($name, 'MEDLATEC') !== false) {
+        return $base_url . '/uploads/hospitals/medlatec_cantho_logo.png';
+    }
+    if (stripos($name, 'VNVC') !== false) {
+        return 'https://sanvieclamcantho.com/upload/imagelogo/vnvc1724469700.png';
+    }
+    if (stripos($name, 'Long Châu') !== false) {
+        return 'https://cdn-new.topcv.vn/unsafe/https://static.topcv.vn/company_logos/IinkQQY7z2A7AQXZ84KKTNq83awObGLS_1650511186____11070390482b3374c7cee11f4b9f6fdf.png';
+    }
+    if (stripos($name, 'DIAG') !== false) {
+        return $base_url . '/uploads/hospitals/diag_logo.svg';
+    }
+    if (stripos($name, 'MEDIC') !== false) {
+        return $base_url . '/uploads/hospitals/medic_logo.jpg';
+    }
+    if (stripos($name, 'Y Dược') !== false) {
+        return 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRUed7lW_iE0g1ImT9gSZmy0PdfBiewVl5obQ&s';
+    }
+    if (stripos($name, 'Trung ương') !== false) {
+        return 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSlTz_v9XDRvF_FcHXFdA0GicixowqlMdgmQg&s';
+    }
+    return facilitiesImageSrc($hospital['logo_url'] ?? '', 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/No_image_available.svg/512px-No_image_available.svg.png', $base_url);
 }
 
 $categories = [
@@ -68,17 +145,12 @@ $categories = [
 ];
 $categoryCounts = array_fill_keys(array_keys($categories), 0);
 try {
-    $db->query("SELECT COALESCE(h.facility_type, 'public') AS facility_type, COUNT(DISTINCT h.id) AS total
-                FROM hospitals h
-                LEFT JOIN users u ON u.hospital_id = h.id AND u.role = 'hospital'
-                WHERE u.id IS NOT NULL AND COALESCE(u.hospital_approval_status, 'approved') = 'approved'
-                GROUP BY COALESCE(h.facility_type, 'public')");
-    $countRows = $db->resultSet();
-    foreach ($countRows as $row) {
-        if (isset($categoryCounts[$row['facility_type']])) {
-            $categoryCounts[$row['facility_type']] = (int)$row['total'];
+    foreach ($allHospitals as $hospital) {
+        $facilityType = $hospital['facility_type'] ?: 'public';
+        if (isset($categoryCounts[$facilityType])) {
+            $categoryCounts[$facilityType]++;
         }
-        $categoryCounts[''] += (int)$row['total'];
+        $categoryCounts['']++;
     }
 } catch (Exception $e) {
 }
@@ -137,7 +209,7 @@ try {
                             'phone' => $hospital['phone'] ?: 'Đang cập nhật',
                             'working_time' => $hospital['working_time'] ?: 'Đang cập nhật',
                             'description' => $hospital['short_description'] ?: ($hospital['description'] ?: 'Cơ sở y tế đang cập nhật thông tin giới thiệu.'),
-                            'logo' => facilitiesImageSrc($hospital['logo_url'] ?? '', 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/No_image_available.svg/512px-No_image_available.svg.png', $base_url),
+                            'logo' => facilitiesHospitalLogo($hospital, $base_url),
                             'map_embed_url' => $hospital['map_embed_url'] ?? '',
                             'images' => array_values(array_unique(array_filter($bannerImages))),
                             'rating' => number_format($displayRating, 1),
@@ -149,7 +221,7 @@ try {
                     <div class="facility-select-card card border-0 shadow-sm rounded-4 overflow-hidden text-start <?php echo $index === 0 ? 'active' : ''; ?>" data-facility='<?php echo htmlspecialchars(json_encode($hospitalDetail, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8'); ?>' style="background:#fff; width:100%; cursor:pointer; border:2px solid <?php echo $index === 0 ? '#00b5f1' : 'transparent'; ?> !important;">
                         <div class="row g-0 align-items-center">
                             <div class="col-md-3 bg-white d-flex align-items-center justify-content-center p-4">
-                                <img src="<?php echo htmlspecialchars($hospitalDetail['logo']); ?>" alt="<?php echo htmlspecialchars($hospital['name']); ?>" class="img-fluid" style="max-height:120px; object-fit:contain;">
+                                <img src="<?php echo htmlspecialchars($hospitalDetail['logo']); ?>" alt="<?php echo htmlspecialchars($hospital['name']); ?>" class="img-fluid" style="width:120px; max-height:120px; object-fit:contain;" onerror="this.onerror=null;this.src='https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/No_image_available.svg/512px-No_image_available.svg.png';">
                             </div>
                             <div class="col-md-9">
                                 <div class="card-body p-4">
@@ -171,6 +243,28 @@ try {
                     <div class="bg-white rounded-4 shadow-sm p-5 text-center fw-semibold" style="color:#023f6d;">Chưa tìm thấy cơ sở y tế phù hợp.</div>
                 <?php endif; ?>
             </div>
+
+            <?php if ($totalPages > 1): ?>
+                <nav class="mt-4" aria-label="Phân trang cơ sở y tế">
+                    <ul class="pagination justify-content-center align-items-center gap-2 mb-0">
+                        <li class="page-item <?php echo $page <= 1 ? 'disabled' : ''; ?>">
+                            <a class="page-link rounded-3 border-0 shadow-sm" href="<?php echo $page > 1 ? htmlspecialchars(facilitiesPageUrl($page - 1)) : '#'; ?>">‹</a>
+                        </li>
+                        <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+                            <?php if ($i <= 5 || $i === $totalPages || abs($i - $page) <= 1): ?>
+                                <li class="page-item <?php echo $i === $page ? 'active' : ''; ?>">
+                                    <a class="page-link rounded-3 border-0 shadow-sm fw-bold" href="<?php echo htmlspecialchars(facilitiesPageUrl($i)); ?>"><?php echo $i; ?></a>
+                                </li>
+                            <?php elseif ($i === 6): ?>
+                                <li class="page-item disabled"><span class="page-link border-0 bg-transparent text-muted">...</span></li>
+                            <?php endif; ?>
+                        <?php endfor; ?>
+                        <li class="page-item <?php echo $page >= $totalPages ? 'disabled' : ''; ?>">
+                            <a class="page-link rounded-3 border-0 shadow-sm" href="<?php echo $page < $totalPages ? htmlspecialchars(facilitiesPageUrl($page + 1)) : '#'; ?>">›</a>
+                        </li>
+                    </ul>
+                </nav>
+            <?php endif; ?>
         </div>
 
         <div class="col-lg-5">
@@ -181,6 +275,9 @@ try {
     </div>
 
     <style>
+    .facility-select-card {
+        min-height: 230px;
+    }
     .facility-scroll-column {
         scrollbar-width: thin;
         scrollbar-color: #cbd5e1 transparent;

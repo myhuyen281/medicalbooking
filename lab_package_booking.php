@@ -4,168 +4,66 @@ include 'includes/header.php';
 
 $db = new Database();
 $packageId = isset($_GET['package_id']) ? (int)$_GET['package_id'] : 0;
-$db->query("SELECT lp.*, h.name AS hospital_name, h.address, h.phone, h.logo_url, h.booking_advance_days, h.booking_time_slots
-            FROM lab_packages lp
-            INNER JOIN hospitals h ON h.id = lp.hospital_id
-            WHERE lp.id = :id AND lp.is_active = 1 LIMIT 1");
+foreach ([
+    "ALTER TABLE lab_packages ADD COLUMN booking_flow VARCHAR(30) NOT NULL DEFAULT 'service_first'",
+    "ALTER TABLE lab_packages ADD COLUMN booking_specialties TEXT NULL",
+    "ALTER TABLE lab_package_services ADD COLUMN specialty_name TEXT NULL",
+    "ALTER TABLE lab_package_services ADD COLUMN service_icon VARCHAR(80) NOT NULL DEFAULT 'bi-clipboard2-pulse'",
+    "ALTER TABLE lab_package_services ADD COLUMN schedule_text VARCHAR(255) NULL",
+    "ALTER TABLE lab_package_services ADD COLUMN time_slots TEXT NULL"
+] as $sql) { try { $db->query($sql); $db->execute(); } catch (Exception $e) {} }
+$db->query("SELECT lp.*, h.name AS hospital_name, h.address, h.phone FROM lab_packages lp INNER JOIN hospitals h ON h.id = lp.hospital_id WHERE lp.id = :id AND lp.is_active = 1 LIMIT 1");
 $db->bind(':id', $packageId);
 $package = $db->single();
-if (!$package) {
-    echo '<div class="alert alert-warning my-5">Không tìm thấy gói xét nghiệm.</div>';
-    include 'includes/footer.php';
-    exit();
-}
+if (!$package) { echo '<div class="alert alert-warning my-5">Không tìm thấy gói.</div>'; include 'includes/footer.php'; exit(); }
 $db->query("SELECT * FROM lab_package_services WHERE package_id = :package_id ORDER BY sort_order ASC, id ASC");
 $db->bind(':package_id', $packageId);
 $services = $db->resultSet();
-$timeSlots = json_decode($package['booking_time_slots'] ?? '', true);
-if (!is_array($timeSlots) || count($timeSlots) === 0) {
-    $timeSlots = [
-        ['period' => 'morning', 'start' => '07:00', 'end' => '08:00'],
-        ['period' => 'morning', 'start' => '08:00', 'end' => '09:00'],
-        ['period' => 'afternoon', 'start' => '13:00', 'end' => '14:00'],
-        ['period' => 'afternoon', 'start' => '14:00', 'end' => '15:00']
-    ];
-}
+$category = $package['category'] ?? 'lab';
+$labels = [
+    'lab' => ['title' => 'Đặt lịch xét nghiệm', 'date' => 'Ngày xét nghiệm', 'time' => 'Giờ xét nghiệm', 'empty' => 'Gói này chưa có dịch vụ xét nghiệm.'],
+    'imaging' => ['title' => 'Đặt lịch chụp phim & nội soi', 'date' => 'Ngày thực hiện', 'time' => 'Giờ thực hiện', 'empty' => 'Gói này chưa có dịch vụ chụp phim/nội soi.'],
+    'vaccination' => ['title' => 'Đặt lịch tiêm chủng', 'date' => 'Ngày tiêm', 'time' => 'Giờ tiêm', 'empty' => 'Gói này chưa có dịch vụ tiêm chủng.'],
+    'health' => ['title' => 'Đặt lịch gói khám sức khỏe', 'date' => 'Ngày khám', 'time' => 'Giờ khám', 'empty' => 'Gói này chưa có hạng mục khám sức khỏe.']
+];
+$text = $labels[$category] ?? $labels['lab'];
+$bookingFlow = in_array($package['booking_flow'] ?? '', ['specialty_first', 'service_first'], true) ? $package['booking_flow'] : 'service_first';
+$serviceSpecialties = json_decode($package['booking_specialties'] ?? '[]', true);
+if (!is_array($serviceSpecialties)) $serviceSpecialties = [];
+foreach ($services as $service) { $sp = trim($service['specialty_name'] ?? ''); if ($sp !== '' && !in_array($sp, $serviceSpecialties, true)) $serviceSpecialties[] = $sp; }
+$defaultSlots = [['period'=>'morning','start'=>'07:00','end'=>'08:00'],['period'=>'morning','start'=>'08:00','end'=>'09:00'],['period'=>'afternoon','start'=>'13:00','end'=>'14:00'],['period'=>'afternoon','start'=>'14:00','end'=>'15:00']];
 ?>
 
-<div class="py-4" style="background:#eaf7ff; min-height:650px;">
-    <nav aria-label="breadcrumb" class="mb-4">
-        <ol class="breadcrumb fw-semibold">
-            <li class="breadcrumb-item"><a href="index.php" class="text-decoration-none" style="color:#023f6d;">Trang chủ</a></li>
-            <li class="breadcrumb-item"><a href="lab_booking.php" class="text-decoration-none" style="color:#023f6d;">Đặt lịch xét nghiệm</a></li>
-            <li class="breadcrumb-item active" style="color:#00b5f1;">Thông tin đặt lịch</li>
-        </ol>
-    </nav>
-
-    <div class="row g-4">
-        <div class="col-lg-4">
-            <div class="bg-white rounded-4 shadow-sm overflow-hidden">
-                <div class="p-4 text-white fw-bold" style="background:#023f6d;">Thông tin cơ sở y tế</div>
-                <div class="p-4">
-                    <h5 class="fw-bold" style="color:#023f6d;"><?php echo htmlspecialchars($package['hospital_name']); ?></h5>
-                    <div class="small text-muted mb-2"><?php echo htmlspecialchars($package['address'] ?: 'Đang cập nhật địa chỉ'); ?></div>
-                    <div class="small text-muted"><?php echo htmlspecialchars($package['phone'] ?: 'Đang cập nhật điện thoại'); ?></div>
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-8">
-            <div class="bg-white rounded-4 shadow-sm p-4">
-                <h3 class="fw-bold mb-4" style="color:#00a8f0;">Đặt lịch gói xét nghiệm</h3>
-                <div class="mb-4 p-3 rounded-3" style="background:#f0fbff;">
-                    <div class="fw-bold" style="color:#023f6d;"><?php echo htmlspecialchars($package['name']); ?></div>
-                </div>
-
-                <div class="mb-4">
-                    <label class="form-label fw-bold">Dịch vụ <span class="text-danger">*</span></label>
-                    <div class="d-flex flex-column gap-3">
-                        <?php foreach ($services as $service): ?>
-                            <button type="button" class="lab-service-option rounded-3 p-3 border bg-white text-start" data-weekdays="<?php echo htmlspecialchars($service['schedule_text'] ?? ''); ?>" data-times='<?php echo htmlspecialchars($service['time_slots'] ?: '[]', ENT_QUOTES, 'UTF-8'); ?>' data-name="<?php echo htmlspecialchars($service['name']); ?>" data-price="<?php echo number_format((float)$service['price'], 0, ',', '.'); ?>đ">
-                                <div class="fw-bold mb-1" style="color:#00a8f0;"><i class="bi <?php echo htmlspecialchars($service['service_icon'] ?? 'bi-clipboard2-pulse'); ?> me-2"></i><?php echo htmlspecialchars($service['name']); ?></div>
-                                <div class="small text-muted mb-1">Giá: <?php echo number_format((float)$service['price'], 0, ',', '.'); ?>đ</div>
-                                <?php if (!empty($service['description'])): ?><div class="small" style="color:#023f6d;"><?php echo nl2br(htmlspecialchars($service['description'])); ?></div><?php endif; ?>
-                            </button>
-                        <?php endforeach; ?>
-                        <?php if (count($services) === 0): ?><div class="text-muted">Gói này chưa có dịch vụ xét nghiệm.</div><?php endif; ?>
-                    </div>
-                </div>
-
-                <div class="mb-4">
-                    <label class="form-label fw-bold">Ngày xét nghiệm <span class="text-danger">*</span></label>
-                    <div id="dateOptions" class="d-flex flex-wrap gap-2 text-muted">Chọn dịch vụ để hiển thị ngày xét nghiệm</div>
-                </div>
-
-                <div class="mb-4">
-                    <label class="form-label fw-bold">Giờ xét nghiệm <span class="text-danger">*</span></label>
-                    <div id="timeOptions" class="d-flex flex-wrap gap-2 d-none">
-                        <?php foreach ($timeSlots as $slot): ?>
-                            <button type="button" class="btn btn-outline-info rounded-pill time-option"><?php echo htmlspecialchars(($slot['start'] ?? '') . ' - ' . ($slot['end'] ?? '')); ?></button>
-                        <?php endforeach; ?>
-                    </div>
-                    <div id="timePlaceholder" class="text-muted">Chọn ngày để hiển thị giờ xét nghiệm</div>
-                </div>
-
-                <button id="continueBtn" class="btn btn-premium-primary w-100 py-3 rounded-3" disabled>Tiếp tục</button>
-            </div>
-        </div>
+<div class="px-2 px-md-4 pb-4" style="background-color:#eaf7fc; min-height:560px;">
+    <nav aria-label="breadcrumb" class="mb-4"><ol class="breadcrumb fw-semibold mb-0"><li class="breadcrumb-item"><a href="index.php" class="text-decoration-none" style="color:#023f6d;">Trang chủ</a></li><li class="breadcrumb-item"><a href="facility_booking_options.php?facility=<?php echo urlencode($package['hospital_name']); ?>" class="text-decoration-none" style="color:#023f6d;"><?php echo htmlspecialchars($package['hospital_name']); ?></a></li><li class="breadcrumb-item active" style="color:#00b5f1;">Thông tin đặt lịch</li></ol></nav>
+    <div class="row g-3">
+        <div class="col-lg-3"><div class="bg-white rounded-1 overflow-hidden"><div class="text-white fw-bold p-3" style="background-color:#1da1f2;">Thông tin cơ sở y tế</div><div class="p-3"><h6 class="fw-bold mb-2" style="color:#023f6d;"><?php echo htmlspecialchars($package['hospital_name']); ?></h6><p class="text-muted small mb-1"><?php echo htmlspecialchars($package['address'] ?: 'Đang cập nhật địa chỉ'); ?></p><p class="text-muted small mb-0"><?php echo htmlspecialchars($package['phone'] ?: 'Đang cập nhật điện thoại'); ?></p></div></div></div>
+        <div class="col-lg-9"><div class="bg-white"><div class="text-white p-3" style="background-color:#1da1f2;"><div class="d-flex align-items-center justify-content-between"><a href="facility_booking_options.php?facility=<?php echo urlencode($package['hospital_name']); ?>" class="text-white fs-4 text-decoration-none"><i class="bi bi-arrow-left-short"></i></a><h5 class="fw-bold mb-0">Chọn thông tin khám</h5><span style="width:28px;"></span></div><div class="d-flex align-items-center gap-3 mt-3 px-2"><div class="rounded-circle border border-3 border-white d-flex align-items-center justify-content-center" style="width:40px;height:40px;"><i class="bi bi-stethoscope fs-5"></i></div><div class="flex-fill border-top border-white"></div><i class="bi bi-person-fill fs-5 opacity-75"></i><div class="flex-fill border-top border-white"></div><i class="bi bi-check-circle-fill fs-5 opacity-75"></i><div class="flex-fill border-top border-white"></div><i class="bi bi-wallet2 fs-5 opacity-75"></i></div></div>
+            <div class="p-3 p-md-4">
+                <div class="mb-4 p-3 rounded-3" style="background:#f0fbff;"><div class="fw-bold" style="color:#023f6d;"><?php echo htmlspecialchars($package['name']); ?></div></div>
+                <?php if ($bookingFlow === 'specialty_first' && count($serviceSpecialties) > 0): ?><div class="mb-3" id="specialtyField"><label class="form-label fw-bold">Chuyên khoa <span class="text-danger">*</span></label><button type="button" class="btn btn-outline-info w-100 text-start d-flex align-items-center justify-content-between rounded-3 py-2 px-3" data-bs-toggle="modal" data-bs-target="#specialtyModal" style="border-color:#00a8f0;color:#023f6d;"><div id="selectedSpecialtyText"><i class="bi bi-stethoscope me-2" style="color:#00a8f0;"></i> Chọn chuyên khoa</div><i class="bi bi-chevron-right"></i></button></div><?php endif; ?>
+                <div class="mb-3 <?php echo $bookingFlow === 'specialty_first' ? 'opacity-50' : ''; ?>" id="serviceField"><label class="form-label fw-bold">Dịch vụ <span class="text-danger">*</span></label><button type="button" id="serviceSelectButton" class="btn btn-outline-info w-100 text-start d-flex align-items-center justify-content-between rounded-3 py-2 px-3" data-bs-toggle="modal" data-bs-target="#serviceModal" style="border-color:#00a8f0;color:#023f6d;" <?php echo $bookingFlow === 'specialty_first' ? 'disabled' : ''; ?>><div id="selectedServiceText"><i class="bi bi-hand-index-thumb-fill me-2" style="color:#00a8f0;"></i> Chọn dịch vụ</div><i class="bi bi-chevron-right"></i></button><?php if (count($services) === 0): ?><div class="text-muted mt-2"><?php echo htmlspecialchars($text['empty']); ?></div><?php endif; ?></div>
+                <?php if ($bookingFlow === 'service_first' && count($serviceSpecialties) > 0): ?><div class="mb-3 opacity-50" id="specialtyField"><label class="form-label fw-bold">Chuyên khoa <span class="text-danger">*</span></label><button type="button" class="btn btn-outline-info w-100 text-start d-flex align-items-center justify-content-between rounded-3 py-2 px-3" data-bs-toggle="modal" data-bs-target="#specialtyModal" style="border-color:#00a8f0;color:#023f6d;"><div id="selectedSpecialtyText"><i class="bi bi-stethoscope me-2" style="color:#00a8f0;"></i> Chọn chuyên khoa</div><i class="bi bi-chevron-right"></i></button></div><?php endif; ?>
+                <div class="mb-5 opacity-50" id="dateField"><label class="form-label fw-bold"><?php echo htmlspecialchars($text['date']); ?> <span class="text-danger">*</span></label><p id="datePlaceholder" class="text-muted small mb-3">Chọn thông tin trên để hiển thị ngày giờ khám</p><div id="dateOptions" class="d-none row g-2"></div></div>
+                <div class="mb-5 opacity-50" id="timeField"><label class="form-label fw-bold"><?php echo htmlspecialchars($text['time']); ?> <span class="text-danger">*</span></label><p id="timePlaceholder" class="text-muted small mb-3">Chọn thông tin trên để hiển thị ngày giờ khám</p><div id="timeOptions" class="d-none"></div></div>
+                <button id="continueBtn" class="btn w-100 py-3 text-white fw-bold rounded-3" disabled style="background-color:#d7dce3;opacity:1;">Tiếp tục</button>
+            </div></div></div>
     </div>
 </div>
 
-<script>
-let selectedService = false;
-let selectedDate = false;
-let selectedTime = false;
-function updateContinue() {
-    document.getElementById('continueBtn').disabled = !(selectedService && selectedDate && selectedTime);
-}
-let selectedServiceTimes = [];
-function renderTimes(times) {
-    const container = document.getElementById('timeOptions');
-    container.innerHTML = '';
-    const list = Array.isArray(times) && times.length ? times : <?php echo json_encode($timeSlots); ?>;
-    list.forEach(function (slot) {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'btn btn-outline-info rounded-pill time-option';
-        button.textContent = (slot.start || '') + ' - ' + (slot.end || '');
-        button.addEventListener('click', function () {
-            document.querySelectorAll('.time-option').forEach(item => item.classList.remove('active'));
-            this.classList.add('active');
-            selectedTime = true;
-            updateContinue();
-        });
-        container.appendChild(button);
-    });
-}
-function renderDates(weekdays) {
-    const container = document.getElementById('dateOptions');
-    container.className = 'd-flex flex-wrap gap-2';
-    container.innerHTML = '';
-    const allowed = weekdays ? weekdays.split(',').filter(Boolean).map(Number) : [];
-    for (let i = 1; i <= 14; i++) {
-        const date = new Date();
-        date.setDate(date.getDate() + i);
-        if (allowed.length && !allowed.includes(date.getDay())) continue;
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'btn btn-outline-info rounded-pill date-option';
-        button.textContent = date.toLocaleDateString('vi-VN');
-        button.addEventListener('click', function () {
-            document.querySelectorAll('.date-option').forEach(item => item.classList.remove('active'));
-            this.classList.add('active');
-            selectedDate = true;
-            document.getElementById('timePlaceholder').classList.add('d-none');
-            document.getElementById('timeOptions').classList.remove('d-none');
-            renderTimes(selectedServiceTimes);
-            updateContinue();
-        });
-        container.appendChild(button);
-    }
-    if (!container.children.length) container.textContent = 'Không có ngày phù hợp.';
-}
-document.querySelectorAll('.lab-service-option').forEach(function (button) {
-    button.addEventListener('click', function () {
-        document.querySelectorAll('.lab-service-option').forEach(item => { item.style.borderColor = ''; item.style.backgroundColor = ''; });
-        this.style.borderColor = '#00a8f0';
-        this.style.backgroundColor = '#eefcff';
-        selectedService = true;
-        try { selectedServiceTimes = JSON.parse(this.dataset.times || '[]'); } catch (e) { selectedServiceTimes = []; }
-        selectedDate = false;
-        selectedTime = false;
-        document.getElementById('timeOptions').classList.add('d-none');
-        document.getElementById('timePlaceholder').classList.remove('d-none');
-        renderDates(this.dataset.weekdays);
-        updateContinue();
-    });
-});
-document.querySelectorAll('.time-option').forEach(function (button) {
-    button.addEventListener('click', function () {
-        document.querySelectorAll('.time-option').forEach(item => item.classList.remove('active'));
-        this.classList.add('active');
-        selectedTime = true;
-        updateContinue();
-    });
-});
-</script>
+<div class="modal fade" id="specialtyModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered" style="max-width:600px;"><div class="modal-content border-0 rounded-4 shadow-lg"><div class="modal-header border-0 justify-content-center position-relative"><h5 class="modal-title fw-bold">Chọn chuyên khoa</h5><button type="button" class="btn-close position-absolute end-0 me-3" data-bs-dismiss="modal"></button></div><div class="modal-body px-3 px-md-4 pb-4"><div class="d-flex flex-column gap-3"><?php foreach ($serviceSpecialties as $sp): ?><div class="rounded-3 p-3 border package-specialty-option" role="button" data-specialty="<?php echo htmlspecialchars($sp); ?>"><div class="fw-bold" style="color:#00a8f0;"><i class="bi bi-stethoscope me-2"></i><?php echo htmlspecialchars($sp); ?></div></div><?php endforeach; ?></div></div></div></div></div>
+<div class="modal fade" id="serviceModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered" style="max-width:600px;"><div class="modal-content border-0 rounded-4 shadow-lg"><div class="modal-header border-0 justify-content-center position-relative"><h5 class="modal-title fw-bold">Chọn dịch vụ</h5><button type="button" class="btn-close position-absolute end-0 me-3" data-bs-dismiss="modal"></button></div><div class="modal-body px-3 px-md-4 pb-4"><div class="input-group mb-4 rounded-3 overflow-hidden" style="background-color:#f1f1f1;"><span class="input-group-text border-0 bg-transparent text-muted"><i class="bi bi-search"></i></span><input type="text" class="form-control border-0 bg-transparent shadow-none py-3" placeholder="Tìm kiếm dịch vụ..."></div><div class="d-flex flex-column gap-3"><?php foreach ($services as $service): ?><?php $days = array_filter(explode(',', (string)($service['schedule_text'] ?? '')), 'strlen'); $dayLabels=[1=>'Thứ 2',2=>'Thứ 3',3=>'Thứ 4',4=>'Thứ 5',5=>'Thứ 6',6=>'Thứ 7',0=>'CN']; $labels=array_filter(array_map(fn($d)=>$dayLabels[(int)$d]??null,$days)); ?><div class="rounded-3 p-3 border lab-service-option" role="button" data-specialty="<?php echo htmlspecialchars($service['specialty_name'] ?? ''); ?>" data-weekdays="<?php echo htmlspecialchars($service['schedule_text'] ?? ''); ?>" data-times='<?php echo htmlspecialchars($service['time_slots'] ?: json_encode($defaultSlots), ENT_QUOTES, 'UTF-8'); ?>' data-name="<?php echo htmlspecialchars($service['name']); ?>" data-price="<?php echo number_format((float)$service['price'],0,',','.'); ?>đ" data-icon="<?php echo htmlspecialchars($service['service_icon'] ?? 'bi-clipboard2-pulse'); ?>"><div class="fw-bold mb-1" style="color:#00a8f0;"><i class="bi <?php echo htmlspecialchars($service['service_icon'] ?? 'bi-clipboard2-pulse'); ?> me-2"></i><?php echo htmlspecialchars($service['name']); ?></div><div class="small" style="color:#023f6d;">Lịch: <?php echo htmlspecialchars(count($labels)?implode(', ',$labels):'Đang cập nhật'); ?></div><div class="fw-bold" style="color:#ff9f1c;">Giá: <?php echo number_format((float)$service['price'],0,',','.'); ?>đ</div></div><?php endforeach; ?></div></div></div></div></div>
 
+<script>
+const bookingFlow = '<?php echo $bookingFlow; ?>'; let selectedSpecialty = <?php echo count($serviceSpecialties)>0?'false':'true'; ?>, selectedSpecialtyName='', selectedService=false, selectedDate=false, selectedTime=false, selectedServiceTimes=[];
+const serviceField=document.getElementById('serviceField'), specialtyField=document.getElementById('specialtyField'), dateField=document.getElementById('dateField'), timeField=document.getElementById('timeField');
+function updateContinue(){const b=document.getElementById('continueBtn'); const ok=selectedSpecialty&&selectedService&&selectedDate&&selectedTime; b.disabled=!ok; b.style.backgroundColor=ok?'#00b5f1':'#d7dce3';}
+function showDateTimeFields(){dateField?.classList.remove('opacity-50');timeField?.classList.remove('opacity-50');}
+function hideDateTimeFields(){dateField?.classList.add('opacity-50');timeField?.classList.add('opacity-50');}
+function renderDates(weekdays){const c=document.getElementById('dateOptions'); c.className='row g-2'; c.innerHTML=''; const allowed=weekdays?weekdays.split(',').filter(Boolean).map(Number):[]; for(let i=1;i<=14;i++){const d=new Date(); d.setDate(d.getDate()+i); if(allowed.length&&!allowed.includes(d.getDay())) continue; const col=document.createElement('div'); col.className='col-md-3'; const btn=document.createElement('button'); btn.type='button'; btn.className='btn w-100 rounded-3 py-3 fw-bold date-option'; btn.style.cssText='border:1px solid #edf1f5;background:#fff;color:#006da8;'; btn.innerHTML='<span>('+String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+')</span><br><span style="color:#006da8;">'+['CN','Thứ 2','Thứ 3','Thứ 4','Thứ 5','Thứ 6','Thứ 7'][d.getDay()]+'</span>'; btn.onclick=function(){document.querySelectorAll('.date-option').forEach(x=>x.classList.remove('active')); this.classList.add('active'); selectedDate=true; document.getElementById('timePlaceholder').classList.add('d-none'); document.getElementById('timeOptions').classList.remove('d-none'); renderTimes(selectedServiceTimes); updateContinue();}; col.appendChild(btn); c.appendChild(col);} if(!c.children.length)c.textContent='Không có ngày phù hợp.';}
+function renderTimes(times){const c=document.getElementById('timeOptions'); c.innerHTML=''; const list=Array.isArray(times)&&times.length?times:<?php echo json_encode($defaultSlots); ?>; [{t:'Buổi sáng',a:list.filter(s=>(s.period||((s.start||'')>='12:00'?'afternoon':'morning'))==='morning')},{t:'Buổi chiều',a:list.filter(s=>(s.period||((s.start||'')>='12:00'?'afternoon':'morning'))==='afternoon')}].forEach(g=>{if(!g.a.length)return; c.insertAdjacentHTML('beforeend','<div class="fw-bold mb-2" style="color:#023f6d;">'+g.t+'</div>'); const r=document.createElement('div'); r.className='row g-2 mb-3'; g.a.forEach(s=>{const col=document.createElement('div'); col.className='col-md-4'; col.innerHTML='<button type="button" class="btn bg-white w-100 rounded-3 py-3 fw-bold time-option" style="color:#023f6d;">'+(s.start||'')+' - '+(s.end||'')+'</button>'; r.appendChild(col);}); c.appendChild(r);}); c.insertAdjacentHTML('beforeend','<div class="fw-bold" style="color:#ff9f1c;">Tất cả thời gian theo múi giờ Việt Nam GMT +7</div>'); c.querySelectorAll('.time-option').forEach(btn=>btn.onclick=function(){document.querySelectorAll('.time-option').forEach(x=>x.classList.remove('active'));this.classList.add('active');selectedTime=true;updateContinue();});}
+document.querySelectorAll('.package-specialty-option').forEach(btn=>btn.onclick=function(){selectedSpecialty=true;selectedSpecialtyName=this.dataset.specialty||'';document.getElementById('selectedSpecialtyText').innerHTML='<i class="bi bi-stethoscope me-2" style="color:#00a8f0;"></i>'+selectedSpecialtyName;bootstrap.Modal.getInstance(document.getElementById('specialtyModal'))?.hide(); if(bookingFlow==='specialty_first'){serviceField.classList.remove('opacity-50');document.getElementById('serviceSelectButton').removeAttribute('disabled');selectedService=false;selectedDate=false;selectedTime=false;document.getElementById('selectedServiceText').innerHTML='<i class="bi bi-hand-index-thumb-fill me-2" style="color:#00a8f0;"></i> Chọn dịch vụ';document.querySelectorAll('.lab-service-option').forEach(x=>x.classList.toggle('d-none', x.dataset.specialty && x.dataset.specialty!==selectedSpecialtyName));document.getElementById('dateOptions').classList.add('d-none');document.getElementById('timeOptions').classList.add('d-none');document.getElementById('datePlaceholder').classList.remove('d-none');document.getElementById('timePlaceholder').classList.remove('d-none');hideDateTimeFields();} if(bookingFlow==='service_first'&&selectedService){showDateTimeFields();document.getElementById('datePlaceholder').classList.add('d-none');renderDates(document.querySelector('.lab-service-option.active')?.dataset.weekdays||'');document.getElementById('dateOptions').classList.remove('d-none');} updateContinue();});
+if(bookingFlow==='specialty_first') document.querySelectorAll('.lab-service-option').forEach(x=>x.classList.add('d-none'));
+document.querySelectorAll('.lab-service-option').forEach(btn=>btn.onclick=function(){if(bookingFlow==='specialty_first'&&!selectedSpecialty)return;document.querySelectorAll('.lab-service-option').forEach(x=>{x.classList.remove('active');x.style.borderColor='';x.style.backgroundColor='';});this.classList.add('active');this.style.borderColor='#00a8f0';this.style.backgroundColor='#eefcff';document.getElementById('selectedServiceText').innerHTML='<i class="bi '+(this.dataset.icon||'bi-clipboard2-pulse')+' me-2" style="color:#00a8f0;"></i>'+this.dataset.name+' - '+this.dataset.price;bootstrap.Modal.getInstance(document.getElementById('serviceModal'))?.hide();selectedService=true;try{selectedServiceTimes=JSON.parse(this.dataset.times||'[]')}catch(e){selectedServiceTimes=[]}selectedDate=false;selectedTime=false;document.getElementById('timeOptions').classList.add('d-none');document.getElementById('timePlaceholder').classList.remove('d-none'); if(bookingFlow==='service_first'&&specialtyField){specialtyField.classList.remove('opacity-50');selectedSpecialty=false;selectedSpecialtyName='';document.getElementById('selectedSpecialtyText').innerHTML='<i class="bi bi-stethoscope me-2" style="color:#00a8f0;"></i> Chọn chuyên khoa';document.querySelectorAll('.package-specialty-option').forEach(x=>x.classList.toggle('d-none', this.dataset.specialty && x.dataset.specialty!==this.dataset.specialty));hideDateTimeFields();}else{showDateTimeFields();document.getElementById('datePlaceholder').classList.add('d-none');renderDates(this.dataset.weekdays);document.getElementById('dateOptions').classList.remove('d-none');}updateContinue();});
+</script>
 <?php include 'includes/footer.php'; ?>

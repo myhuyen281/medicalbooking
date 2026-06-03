@@ -102,6 +102,8 @@ $services = [];
 $doctors = [];
 $selectedService = null;
 $selectedServicePriceDisplay = '';
+$selectedServiceWeekdaysForJs = [];
+$selectedServiceText = '<i class="bi bi-hand-index-thumb-fill me-2" style="color: #00a8f0;"></i> Chọn dịch vụ';
 $bookingAdvanceDays = 30;
 $bookingTimeSlots = [];
 $bookingFlow = 'service_only';

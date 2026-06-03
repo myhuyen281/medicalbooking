@@ -187,10 +187,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $contentImageUrl = $hospital['content_image_url'] ?? '';
     $overviewFileUrl = $hospital['overview_file_url'] ?? '';
     $serviceImageUrl = $hospital['service_image_url'] ?? '';
-    $selectedDays = $_POST['working_days'] ?? [];
-    $startTime = $_POST['start_time'] ?? '';
-    $endTime = $_POST['end_time'] ?? '';
-    $workingTime = count($selectedDays) && $startTime && $endTime ? implode(', ', $selectedDays) . ' (' . $startTime . '-' . $endTime . ')' : '';
+    $workingGroups = $_POST['working_groups'] ?? [];
+    $workingParts = [];
+    $invalidWorkingTime = false;
+    foreach ($workingGroups as $group) {
+        $days = array_values(array_filter($group['days'] ?? [], 'strlen'));
+        $startTime = $group['start_time'] ?? '';
+        $endTime = $group['end_time'] ?? '';
+        if (!count($days) && $startTime === '' && $endTime === '') {
+            continue;
+        }
+        if (!count($days) || $startTime === '' || $endTime === '' || $startTime >= $endTime) {
+            $invalidWorkingTime = true;
+            break;
+        }
+        $workingParts[] = implode(', ', $days) . ': ' . $startTime . ' - ' . $endTime;
+    }
+    $workingTime = implode('; ', $workingParts);
     $bookingAdvanceDays = max(1, min(365, (int)($_POST['booking_advance_days'] ?? 30)));
     $description = '';
     $shortDescription = trim($_POST['short_description']);
@@ -228,10 +241,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         
     } elseif (count($hospitalBanners) === 0 && $uploadedBanners === null) {
         $error = "Vui lòng upload ít nhất 1 ảnh banner, tối đa 5 ảnh.";
-    } elseif (($startTime && $startTime > '23:00') || ($endTime && $endTime > '23:00')) {
-        $error = "Thời gian làm việc chỉ được chọn tối đa đến 23:00.";
-    } elseif ($startTime && $endTime && $startTime >= $endTime) {
-        $error = "Giờ bắt đầu phải nhỏ hơn giờ kết thúc.";
+    } elseif ($invalidWorkingTime) {
+        $error = "Vui lòng chọn đủ thứ, giờ bắt đầu và giờ kết thúc hợp lệ cho từng nhóm.";
     } elseif (empty($name) || empty($phone) || empty($email)) {
         $error = "Vui lòng nhập tên bệnh viện, email và số điện thoại.";
     } else {
@@ -292,7 +303,7 @@ if ($error && $_SERVER["REQUEST_METHOD"] == "POST") {
     $hospital['description'] = $_POST['description'] ?? $hospital['description'];
     $hospital['map_embed_url'] = $_POST['map_embed_url'] ?? ($hospital['map_embed_url'] ?? '');
     $hospital['booking_advance_days'] = $_POST['booking_advance_days'] ?? ($hospital['booking_advance_days'] ?? 30);
-    $hospital['working_time'] = !empty($_POST['working_days']) && !empty($_POST['start_time']) && !empty($_POST['end_time']) ? implode(', ', $_POST['working_days']) . ' (' . $_POST['start_time'] . '-' . $_POST['end_time'] . ')' : ($hospital['working_time'] ?? '');
+    $hospital['working_time'] = $workingTime ?: ($hospital['working_time'] ?? '');
 }
 
 $db->query("SELECT * FROM hospital_banners WHERE hospital_id = :hospital_id ORDER BY sort_order ASC");
@@ -302,11 +313,21 @@ $hospitalBanners = $db->resultSet();
 
 $dayOptions = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
 $currentWorkingTime = $hospital['working_time'] ?? '';
-$currentStartTime = '';
-$currentEndTime = '';
-if (preg_match('/\((\d{2}:\d{2})-(\d{2}:\d{2})\)/', $currentWorkingTime, $matches)) {
-    $currentStartTime = $matches[1];
-    $currentEndTime = $matches[2];
+$currentWorkingGroups = [];
+foreach (array_filter(array_map('trim', explode(';', $currentWorkingTime))) as $workingPart) {
+    if (preg_match('/^(.+?):\s*(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})$/u', $workingPart, $matches)) {
+        $currentWorkingGroups[] = [
+            'days' => array_map('trim', explode(',', $matches[1])),
+            'start_time' => str_pad($matches[2], 5, '0', STR_PAD_LEFT),
+            'end_time' => str_pad($matches[3], 5, '0', STR_PAD_LEFT),
+        ];
+    }
+}
+if (!count($currentWorkingGroups) && preg_match('/\((\d{2}:\d{2})-(\d{2}:\d{2})\)/', $currentWorkingTime, $matches)) {
+    $currentWorkingGroups[] = ['days' => ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'], 'start_time' => $matches[1], 'end_time' => $matches[2]];
+}
+if (!count($currentWorkingGroups)) {
+    $currentWorkingGroups[] = ['days' => [], 'start_time' => '', 'end_time' => ''];
 }
 $facilityTypeOptions = [
     'public' => 'Bệnh viện công',
@@ -406,35 +427,43 @@ for ($hour = 0; $hour <= 23; $hour++) {
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">Thời gian làm việc</label>
-                        <div class="d-flex flex-wrap gap-3 mb-3">
-                            <?php foreach ($dayOptions as $day): ?>
-                                <label class="form-check-label">
-                                    <input type="checkbox" name="working_days[]" value="<?php echo $day; ?>" class="form-check-input" <?php echo strpos($currentWorkingTime, $day) !== false ? 'checked' : ''; ?>>
-                                    <?php echo $day; ?>
-                                </label>
+                        <div id="workingGroups" class="d-flex flex-column gap-2">
+                            <?php foreach ($currentWorkingGroups as $groupIndex => $group): ?>
+                                <div class="working-group border rounded-3 p-3">
+                                    <div class="d-flex flex-wrap gap-3 mb-3">
+                                        <?php foreach ($dayOptions as $day): ?>
+                                            <label class="form-check-label">
+                                                <input type="checkbox" name="working_groups[<?php echo $groupIndex; ?>][days][]" value="<?php echo $day; ?>" class="form-check-input" <?php echo in_array($day, $group['days'], true) ? 'checked' : ''; ?>>
+                                                <?php echo $day; ?>
+                                            </label>
+                                        <?php endforeach; ?>
+                                    </div>
+                                    <div class="row g-2 align-items-end">
+                                        <div class="col-md-5">
+                                            <label class="form-label small text-muted">Giờ bắt đầu</label>
+                                            <select name="working_groups[<?php echo $groupIndex; ?>][start_time]" class="form-select">
+                                                <option value="">Chọn giờ</option>
+                                                <?php foreach ($timeOptions as $time): ?>
+                                                    <option value="<?php echo $time; ?>" <?php echo ($group['start_time'] ?? '') === $time ? 'selected' : ''; ?>><?php echo $time; ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-5">
+                                            <label class="form-label small text-muted">Giờ kết thúc</label>
+                                            <select name="working_groups[<?php echo $groupIndex; ?>][end_time]" class="form-select">
+                                                <option value="">Chọn giờ</option>
+                                                <?php foreach ($timeOptions as $time): ?>
+                                                    <option value="<?php echo $time; ?>" <?php echo ($group['end_time'] ?? '') === $time ? 'selected' : ''; ?>><?php echo $time; ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-2"><button type="button" class="btn btn-outline-danger w-100 remove-working-group">×</button></div>
+                                    </div>
+                                </div>
                             <?php endforeach; ?>
                         </div>
-                        <div class="row g-2">
-                            <div class="col-md-6">
-                                <label class="form-label small text-muted">Giờ bắt đầu</label>
-                                <select name="start_time" class="form-select">
-                                    <option value="">Chọn giờ</option>
-                                    <?php foreach ($timeOptions as $time): ?>
-                                        <option value="<?php echo $time; ?>" <?php echo $currentStartTime === $time ? 'selected' : ''; ?>><?php echo $time; ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label small text-muted">Giờ kết thúc</label>
-                                <select name="end_time" class="form-select">
-                                    <option value="">Chọn giờ</option>
-                                    <?php foreach ($timeOptions as $time): ?>
-                                        <option value="<?php echo $time; ?>" <?php echo $currentEndTime === $time ? 'selected' : ''; ?>><?php echo $time; ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                        </div>
-                        <small class="text-muted">Số sao được tự động tính từ đánh giá thật của người dùng, bệnh viện không thể tự sửa.</small>
+                        <button type="button" id="addWorkingGroup" class="btn btn-outline-primary btn-sm mt-2">Thêm nhóm ngày giờ</button>
+                        <small class="text-muted d-block mt-2">Chọn thứ và giờ riêng cho từng nhóm, ví dụ Thứ 2-7 một giờ, Chủ nhật một giờ khác.</small>
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">Cho phép đặt khám trước</label>
@@ -470,6 +499,28 @@ for ($hour = 0; $hour <= 23; $hour++) {
 </div>
 
 <script>
+const dayOptions = <?php echo json_encode(array_values($dayOptions), JSON_UNESCAPED_UNICODE); ?>;
+const timeOptions = <?php echo json_encode(array_values($timeOptions), JSON_UNESCAPED_UNICODE); ?>;
+function workingGroupHtml(index) {
+    const days = dayOptions.map(day => '<label class="form-check-label"><input type="checkbox" name="working_groups[' + index + '][days][]" value="' + day + '" class="form-check-input"> ' + day + '</label>').join('');
+    const times = '<option value="">Chọn giờ</option>' + timeOptions.map(time => '<option value="' + time + '">' + time + '</option>').join('');
+    return '<div class="working-group border rounded-3 p-3"><div class="d-flex flex-wrap gap-3 mb-3">' + days + '</div><div class="row g-2 align-items-end"><div class="col-md-5"><label class="form-label small text-muted">Giờ bắt đầu</label><select name="working_groups[' + index + '][start_time]" class="form-select">' + times + '</select></div><div class="col-md-5"><label class="form-label small text-muted">Giờ kết thúc</label><select name="working_groups[' + index + '][end_time]" class="form-select">' + times + '</select></div><div class="col-md-2"><button type="button" class="btn btn-outline-danger w-100 remove-working-group">×</button></div></div></div>';
+}
+
+document.getElementById('addWorkingGroup')?.addEventListener('click', function () {
+    const wrapper = document.getElementById('workingGroups');
+    wrapper.insertAdjacentHTML('beforeend', workingGroupHtml(wrapper.querySelectorAll('.working-group').length));
+});
+
+document.addEventListener('click', function (event) {
+    if (event.target.classList.contains('remove-working-group')) {
+        const groups = document.querySelectorAll('.working-group');
+        if (groups.length > 1) {
+            event.target.closest('.working-group').remove();
+        }
+    }
+});
+
 const bannerImages = document.getElementById('bannerImages');
 if (bannerImages) {
     bannerImages.addEventListener('change', function () {

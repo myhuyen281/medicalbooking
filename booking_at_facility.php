@@ -54,9 +54,77 @@ try {
 } catch (Exception $e) {
     $hospitals = [];
 }
+function bookingFacilityDedupeKey($hospital) {
+    $name = mb_strtolower($hospital['name'] ?? '', 'UTF-8');
+    if (strpos($name, 'medlatec') !== false) return 'medlatec';
+    if (strpos($name, 'da liễu') !== false) return 'da_lieu';
+    if (strpos($name, 'nhi đồng') !== false) return 'nhi_dong';
+    if (strpos($name, 'hoàng mỹ') !== false || strpos($name, 'hoàn mỹ') !== false) return 'hoan_my';
+    if (strpos($name, 'y dược') !== false) return 'y_duoc';
+    if (strpos($name, 'trung ương') !== false) return 'trung_uong';
+    return '';
+}
+function bookingFacilityDedupeHospitals($hospitals) {
+    $seen = [];
+    $result = [];
+    foreach ($hospitals as $hospital) {
+        $key = bookingFacilityDedupeKey($hospital);
+        if ($key !== '') {
+            if (isset($seen[$key])) continue;
+            $seen[$key] = true;
+        }
+        $result[] = $hospital;
+    }
+    return $result;
+}
+$hospitals = bookingFacilityDedupeHospitals($hospitals);
+$showAll = isset($_GET['all']) && $_GET['all'] === '1';
+$totalHospitals = count($hospitals);
+$perPage = 6;
+$totalPages = max(1, (int)ceil($totalHospitals / $perPage));
+$page = max(1, min($totalPages, (int)($_GET['page'] ?? 1)));
+if (!$showAll) {
+    $hospitals = array_slice($hospitals, ($page - 1) * $perPage, $perPage);
+}
+function bookingFacilityPageUrl($page = null, $all = false) {
+    $query = $_GET;
+    if ($all) {
+        $query['all'] = '1';
+        unset($query['page']);
+    } else {
+        unset($query['all']);
+        $query['page'] = $page;
+    }
+    return 'booking_at_facility.php?' . http_build_query($query);
+}
 function bookingFacilityImage($path, $base_url) {
     if (empty($path)) return 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/No_image_available.svg/512px-No_image_available.svg.png';
     return preg_match('#^https?://#', $path) ? $path : $base_url . '/' . $path;
+}
+function bookingFacilityLogo($hospital, $base_url) {
+    $name = $hospital['name'] ?? '';
+    if (stripos($name, 'MEDLATEC') !== false) {
+        return $base_url . '/uploads/hospitals/medlatec_cantho_logo.png';
+    }
+    if (stripos($name, 'VNVC') !== false) {
+        return 'https://sanvieclamcantho.com/upload/imagelogo/vnvc1724469700.png';
+    }
+    if (stripos($name, 'Long Châu') !== false) {
+        return 'https://cdn-new.topcv.vn/unsafe/https://static.topcv.vn/company_logos/IinkQQY7z2A7AQXZ84KKTNq83awObGLS_1650511186____11070390482b3374c7cee11f4b9f6fdf.png';
+    }
+    if (stripos($name, 'DIAG') !== false) {
+        return $base_url . '/uploads/hospitals/diag_logo.svg';
+    }
+    if (stripos($name, 'MEDIC') !== false) {
+        return $base_url . '/uploads/hospitals/medic_logo.jpg';
+    }
+    if (stripos($name, 'Y Dược') !== false) {
+        return 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRUed7lW_iE0g1ImT9gSZmy0PdfBiewVl5obQ&s';
+    }
+    if (stripos($name, 'Trung ương') !== false) {
+        return 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSlTz_v9XDRvF_FcHXFdA0GicixowqlMdgmQg&s';
+    }
+    return bookingFacilityImage($hospital['logo_url'] ?? '', $base_url);
 }
 $districtsByProvince = [
     'Thành phố Hồ Chí Minh' => ['Quận 1', 'Quận 3', 'Quận 4', 'Quận 5', 'Quận 6', 'Quận 7', 'Quận 8', 'Quận 10', 'Quận 11', 'Quận 12', 'Quận Phú Nhuận', 'Quận Bình Thạnh', 'Quận Gò Vấp', 'Quận Tân Bình', 'Quận Tân Phú', 'Quận Bình Tân', 'Huyện Bình Chánh', 'Huyện Hóc Môn', 'Huyện Củ Chi', 'Huyện Nhà Bè', 'Huyện Cần Giờ', 'Thành phố Thủ Đức'],
@@ -117,7 +185,7 @@ $provinces = array_keys($districtsByProvince);
             <div class="col-lg-6">
                 <div class="card border-0 shadow-sm rounded-4 h-100">
                     <div class="card-body p-4 d-flex gap-3 align-items-center">
-                        <img src="<?php echo htmlspecialchars(bookingFacilityImage($hospital['logo_url'] ?? '', $base_url)); ?>" alt="<?php echo htmlspecialchars($hospital['name']); ?>" style="width:100px;height:100px;object-fit:contain;">
+                        <img src="<?php echo htmlspecialchars(bookingFacilityLogo($hospital, $base_url)); ?>" alt="<?php echo htmlspecialchars($hospital['name']); ?>" style="width:100px;height:100px;object-fit:contain;" onerror="this.onerror=null;this.src='https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/No_image_available.svg/512px-No_image_available.svg.png';">
                         <div class="flex-fill">
                             <h5 class="fw-bold mb-2" style="color:#023f6d;"><?php echo htmlspecialchars($hospital['name']); ?> <i class="bi bi-patch-check-fill text-primary"></i></h5>
                             <div class="text-muted small mb-3"><i class="bi bi-geo-alt text-warning"></i> <?php echo htmlspecialchars($hospital['address'] ?: 'Đang cập nhật địa chỉ'); ?></div>
@@ -131,6 +199,31 @@ $provinces = array_keys($districtsByProvince);
             <div class="col-12"><div class="bg-white rounded-4 shadow-sm p-5 text-center text-muted">Không tìm thấy cơ sở y tế phù hợp.</div></div>
         <?php endif; ?>
     </div>
+
+    <?php if (!$showAll && $totalPages > 1): ?>
+        <nav class="mt-4" aria-label="Phân trang cơ sở y tế">
+            <ul class="pagination justify-content-center align-items-center gap-2 mb-0">
+                <li class="page-item <?php echo $page <= 1 ? 'disabled' : ''; ?>">
+                    <a class="page-link rounded-3 border-0 shadow-sm" href="<?php echo $page > 1 ? htmlspecialchars(bookingFacilityPageUrl($page - 1)) : '#'; ?>">‹</a>
+                </li>
+                <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+                    <?php if ($i <= 5 || $i === $totalPages || abs($i - $page) <= 1): ?>
+                        <li class="page-item <?php echo $i === $page ? 'active' : ''; ?>">
+                            <a class="page-link rounded-3 border-0 shadow-sm fw-bold" href="<?php echo htmlspecialchars(bookingFacilityPageUrl($i)); ?>"><?php echo $i; ?></a>
+                        </li>
+                    <?php elseif ($i === 6): ?>
+                        <li class="page-item disabled"><span class="page-link border-0 bg-transparent text-muted">...</span></li>
+                    <?php endif; ?>
+                <?php endfor; ?>
+                <li class="page-item <?php echo $page >= $totalPages ? 'disabled' : ''; ?>">
+                    <a class="page-link rounded-3 border-0 shadow-sm" href="<?php echo $page < $totalPages ? htmlspecialchars(bookingFacilityPageUrl($page + 1)) : '#'; ?>">›</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link rounded-3 border-0 shadow-sm fw-bold px-4" href="<?php echo htmlspecialchars(bookingFacilityPageUrl(null, true)); ?>">Xem tất cả</a>
+                </li>
+            </ul>
+        </nav>
+    <?php endif; ?>
     </div>
 </div>
 
