@@ -397,17 +397,18 @@ if ($isHospitalAdmin && !in_array($currentPath, $hospitalAllowedPaths)) {
             <a href="<?php echo $base_url; ?>/views/admin/dashboard.php" class="<?php echo (strpos($currentPath, '/dashboard.php') !== false) ? 'active' : ''; ?>"><i class="bi bi-speedometer2"></i> Tổng quan</a>
             
             <?php if ($isSystemAdmin): ?>
-            <a href="<?php echo $base_url; ?>/views/admin/specialties/index.php" class="<?php echo (strpos($currentPath, '/specialties/') !== false) ? 'active' : ''; ?>"><i class="bi bi-tags"></i> Quản lý Chuyên khoa</a>
             <a href="<?php echo $base_url; ?>/views/admin/users/index.php" class="<?php echo (strpos($currentPath, '/users/') !== false) ? 'active' : ''; ?>"><i class="bi bi-people"></i> Quản lý Người dùng</a>
-            <a href="<?php echo $base_url; ?>/views/admin/hospitals/index.php" class="<?php echo (strpos($currentPath, '/hospitals/') !== false) ? 'active' : ''; ?>"><i class="bi bi-building-check"></i> Duyệt Bệnh viện</a>
+            <a href="<?php echo $base_url; ?>/views/admin/hospitals/index.php" class="<?php echo (strpos($currentPath, '/hospitals/index.php') !== false) ? 'active' : ''; ?>"><i class="bi bi-building-check"></i> Duyệt Bệnh viện</a>
+            <a href="<?php echo $base_url; ?>/views/admin/hospitals/manage.php" class="<?php echo (strpos($currentPath, '/hospitals/manage.php') !== false) ? 'active' : ''; ?>"><i class="bi bi-hospital"></i> Quản lý Bệnh viện</a>
             <a href="<?php echo $base_url; ?>/views/admin/homepage_banners.php" class="<?php echo (strpos($currentPath, '/homepage_banners.php') !== false) ? 'active' : ''; ?>"><i class="bi bi-images"></i> Quản lý Banner</a>
-            <a href="<?php echo $base_url; ?>/views/admin/doctors/index.php" class="<?php echo (strpos($currentPath, '/doctors/') !== false) ? 'active' : ''; ?>"><i class="bi bi-person-badge"></i> Quản lý Bác sĩ</a>
+            <a href="<?php echo $base_url; ?>/views/admin/news.php" class="<?php echo (strpos($currentPath, '/news.php') !== false) ? 'active' : ''; ?>"><i class="bi bi-newspaper"></i> Quản lý Tin tức</a>
             <?php endif; ?>
             
             <?php if ($isHospitalAdmin): ?>
             <a href="<?php echo $base_url; ?>/views/admin/hospital_profile.php" class="<?php echo (strpos($currentPath, '/hospital_profile.php') !== false) ? 'active' : ''; ?>"><i class="bi bi-building"></i> Hồ sơ Bệnh viện</a>
             <?php endif; ?>
             
+            <?php if ($isHospitalAdmin): ?>
             <a href="<?php echo $base_url; ?>/views/admin/schedules/index.php" class="<?php echo (strpos($currentPath, '/schedules/index.php') !== false || strpos($currentPath, '/schedules/create.php') !== false) ? 'active' : ''; ?>"><i class="bi bi-calendar-plus"></i> Quản lý Lịch khám</a>
             <a href="<?php echo $base_url; ?>/views/admin/schedules/booking_forms.php" class="<?php echo (strpos($currentPath, '/schedules/booking_forms.php') !== false || strpos($currentPath, '/schedules/services.php') !== false) ? 'active' : ''; ?>"><i class="bi bi-grid-3x3-gap"></i> Các hình thức đặt khám</a>
             <?php $packageCategory = $_GET['category'] ?? 'lab'; ?>
@@ -417,6 +418,7 @@ if ($isHospitalAdmin && !in_array($currentPath, $hospitalAllowedPaths)) {
             <a href="<?php echo $base_url; ?>/views/admin/schedules/lab_packages.php?category=health" class="<?php echo (strpos($currentPath, '/schedules/lab_packages.php') !== false && $packageCategory === 'health') ? 'active' : ''; ?>"><i class="bi bi-heart-pulse"></i> Thêm gói khám sức khỏe</a>
             <a href="<?php echo $base_url; ?>/views/admin/schedules/lab_packages.php?category=circular" class="<?php echo (strpos($currentPath, '/schedules/lab_packages.php') !== false && $packageCategory === 'circular') ? 'active' : ''; ?>"><i class="bi bi-file-medical"></i> Thêm khám sức khỏe thông tư</a>
             <a href="<?php echo $base_url; ?>/views/admin/schedules/lab_packages.php?category=homecare" class="<?php echo (strpos($currentPath, '/schedules/lab_packages.php') !== false && $packageCategory === 'homecare') ? 'active' : ''; ?>"><i class="bi bi-house-heart"></i> Gói Y tế tại nhà</a>
+            <?php endif; ?>
             <a href="<?php echo $base_url; ?>/views/admin/appointments/index.php" class="<?php echo (strpos($currentPath, '/appointments/') !== false) ? 'active' : ''; ?>"><i class="bi bi-calendar-check"></i> Quản lý Đơn khám</a>
             <hr>
             <a href="<?php echo $base_url; ?>/index.php" target="_blank"><i class="bi bi-box-arrow-up-right"></i> Xem Website</a>

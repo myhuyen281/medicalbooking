@@ -51,17 +51,26 @@ if (!empty($facility['id'])) {
     $db->bind(':hospital_id', $facility['id']);
     $bookingForms = $db->resultSet();
     try {
-        $db->query("SELECT * FROM lab_packages WHERE hospital_id = :hospital_id AND is_active = 1 ORDER BY FIELD(category, 'lab', 'imaging', 'vaccination'), id ASC");
+        $db->query("SELECT category, MIN(id) AS package_id FROM lab_packages WHERE hospital_id = :hospital_id AND is_active = 1 GROUP BY category ORDER BY FIELD(category, 'health', 'lab', 'imaging', 'vaccination', 'circular', 'homecare'), category ASC");
         $db->bind(':hospital_id', $facility['id']);
         $packageRows = $db->resultSet();
-        $packageIcons = ['lab' => 'bi-clipboard2-pulse', 'imaging' => 'bi-camera', 'vaccination' => 'bi-eyedropper'];
+        $packageGroups = [
+            'health' => ['name' => 'Gói khám sức khỏe', 'icon' => 'bi-heart-pulse'],
+            'lab' => ['name' => 'Gói xét nghiệm', 'icon' => 'bi-clipboard2-pulse'],
+            'imaging' => ['name' => 'Chụp phim & Nội soi', 'icon' => 'bi-camera'],
+            'vaccination' => ['name' => 'Tiêm chủng', 'icon' => 'bi-eyedropper'],
+            'circular' => ['name' => 'Khám sức khỏe thông tư', 'icon' => 'bi-file-medical'],
+            'homecare' => ['name' => 'Y tế tại nhà', 'icon' => 'bi-house-heart']
+        ];
         foreach ($packageRows as $packageRow) {
+            $category = $packageRow['category'] ?? 'lab';
+            $group = $packageGroups[$category] ?? ['name' => 'Gói dịch vụ y tế', 'icon' => 'bi-calendar-check'];
             $bookingForms[] = [
                 'id' => 0,
-                'name' => $packageRow['name'],
-                'icon' => $packageRow['icon_path'] ?? '',
-                'service_icon' => $packageIcons[$packageRow['category'] ?? 'lab'] ?? 'bi-calendar-check',
-                'package_id' => (int)$packageRow['id'],
+                'name' => $group['name'],
+                'icon' => '',
+                'service_icon' => $group['icon'],
+                'package_id' => (int)$packageRow['package_id'],
                 'is_package' => 1
             ];
         }

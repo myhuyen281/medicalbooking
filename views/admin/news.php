@@ -25,6 +25,17 @@ $db->query("CREATE TABLE IF NOT EXISTS news_posts (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 $db->execute();
+try {
+    $db->query("ALTER TABLE news_posts ADD COLUMN category VARCHAR(30) NOT NULL DEFAULT 'medical' AFTER title");
+    $db->execute();
+} catch (Exception $e) {
+}
+$newsCategoryLabels = [
+    'science' => 'Tin tức y khoa',
+    'service' => 'Tin dịch vụ',
+    'medical' => 'Tin y tế',
+    'common' => 'Y học thường thức'
+];
 
 function newsImageSrc($path, $base_url) {
     if (empty($path)) {
@@ -77,6 +88,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $id = (int)($_POST['id'] ?? 0);
         $title = trim($_POST['title'] ?? '');
+        $category = $_POST['category'] ?? 'medical';
+        if (!isset($newsCategoryLabels[$category])) {
+            $category = 'medical';
+        }
         $excerpt = trim($_POST['excerpt'] ?? '');
         $linkUrl = trim($_POST['link_url'] ?? '');
         $author = trim($_POST['author'] ?? '');
@@ -99,8 +114,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($title === '' || $imagePath === '') {
             $error = 'Vui lòng nhập tiêu đề và chọn ảnh tin tức.';
         } elseif ($id > 0) {
-            $db->query('UPDATE news_posts SET title = :title, excerpt = :excerpt, image_path = :image_path, link_url = :link_url, author = :author, published_at = :published_at, sort_order = :sort_order, is_active = :is_active WHERE id = :id');
+            $db->query('UPDATE news_posts SET title = :title, category = :category, excerpt = :excerpt, image_path = :image_path, link_url = :link_url, author = :author, published_at = :published_at, sort_order = :sort_order, is_active = :is_active WHERE id = :id');
             $db->bind(':title', $title);
+            $db->bind(':category', $category);
             $db->bind(':excerpt', $excerpt);
             $db->bind(':image_path', $imagePath);
             $db->bind(':link_url', $linkUrl);
@@ -111,8 +127,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $db->bind(':id', $id);
             $success = $db->execute() ? 'Đã cập nhật tin tức.' : 'Không thể cập nhật tin tức.';
         } else {
-            $db->query('INSERT INTO news_posts (title, excerpt, image_path, link_url, author, published_at, sort_order, is_active) VALUES (:title, :excerpt, :image_path, :link_url, :author, :published_at, :sort_order, :is_active)');
+            $db->query('INSERT INTO news_posts (title, category, excerpt, image_path, link_url, author, published_at, sort_order, is_active) VALUES (:title, :category, :excerpt, :image_path, :link_url, :author, :published_at, :sort_order, :is_active)');
             $db->bind(':title', $title);
+            $db->bind(':category', $category);
             $db->bind(':excerpt', $excerpt);
             $db->bind(':image_path', $imagePath);
             $db->bind(':link_url', $linkUrl);
@@ -144,6 +161,14 @@ $newsPosts = $db->resultSet();
             <div class="col-md-6">
                 <label class="form-label fw-bold">Tiêu đề</label>
                 <input type="text" name="title" class="form-control" required>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label fw-bold">Loại tin</label>
+                <select name="category" class="form-select">
+                    <?php foreach ($newsCategoryLabels as $value => $label): ?>
+                        <option value="<?php echo htmlspecialchars($value); ?>"><?php echo htmlspecialchars($label); ?></option>
+                    <?php endforeach; ?>
+                </select>
             </div>
             <div class="col-md-3">
                 <label class="form-label fw-bold">Tác giả</label>
@@ -198,6 +223,7 @@ $newsPosts = $db->resultSet();
                             <td><img src="<?php echo htmlspecialchars(newsImageSrc($post['image_path'], $base_url)); ?>" class="img-thumbnail" style="width: 150px; height: 90px; object-fit: cover;"></td>
                             <td>
                                 <div class="fw-bold"><?php echo htmlspecialchars($post['title']); ?></div>
+                                <div class="small mb-1"><span class="badge bg-info"><?php echo htmlspecialchars($newsCategoryLabels[$post['category'] ?? 'medical'] ?? 'Tin y tế'); ?></span></div>
                                 <div class="small text-muted"><?php echo date('d/m/Y, H:i', strtotime($post['published_at'])); ?><?php echo $post['author'] ? ' - ' . htmlspecialchars($post['author']) : ''; ?></div>
                                 <div class="small text-muted"><?php echo htmlspecialchars($post['link_url'] ?: 'Không có link'); ?></div>
                                 <span class="badge <?php echo $post['is_active'] ? 'bg-success' : 'bg-secondary'; ?>"><?php echo $post['is_active'] ? 'Đang hiện' : 'Đang ẩn'; ?></span>
@@ -208,6 +234,13 @@ $newsPosts = $db->resultSet();
                                     <input type="hidden" name="id" value="<?php echo (int)$post['id']; ?>">
                                     <input type="hidden" name="current_image_path" value="<?php echo htmlspecialchars($post['image_path']); ?>">
                                     <div class="col-md-6"><input type="text" name="title" class="form-control form-control-sm" value="<?php echo htmlspecialchars($post['title']); ?>" required></div>
+                                    <div class="col-md-3">
+                                        <select name="category" class="form-select form-select-sm">
+                                            <?php foreach ($newsCategoryLabels as $value => $label): ?>
+                                                <option value="<?php echo htmlspecialchars($value); ?>" <?php echo ($post['category'] ?? 'medical') === $value ? 'selected' : ''; ?>><?php echo htmlspecialchars($label); ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
                                     <div class="col-md-3"><input type="text" name="author" class="form-control form-control-sm" value="<?php echo htmlspecialchars($post['author'] ?? ''); ?>" placeholder="Tác giả"></div>
                                     <div class="col-md-3"><input type="datetime-local" name="published_at" class="form-control form-control-sm" value="<?php echo date('Y-m-d\TH:i', strtotime($post['published_at'])); ?>"></div>
                                     <div class="col-md-7"><textarea name="excerpt" class="form-control form-control-sm" rows="2" placeholder="Mô tả ngắn"><?php echo htmlspecialchars($post['excerpt'] ?? ''); ?></textarea></div>

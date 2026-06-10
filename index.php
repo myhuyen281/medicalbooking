@@ -64,18 +64,54 @@ try {
 }
 
 try {
-    $db->query("SELECT lp.*, h.name AS hospital_name, h.logo_url
+    $db->query("SELECT lp.*, h.name AS hospital_name, h.logo_url, COALESCE(NULLIF(lp.price, 0), MIN(NULLIF(lps.price, 0)), 0) AS display_price
                 FROM lab_packages lp
                 INNER JOIN hospitals h ON h.id = lp.hospital_id
+                LEFT JOIN lab_package_services lps ON lps.package_id = lp.id
                 LEFT JOIN users u ON u.hospital_id = h.id AND u.role = 'hospital'
                 WHERE lp.is_active = 1
                   AND lp.category IN ('health', 'lab', 'vaccination')
                   AND COALESCE(u.hospital_approval_status, 'approved') = 'approved'
-                ORDER BY FIELD(lp.category, 'health', 'lab', 'vaccination'), lp.id DESC
-                LIMIT 12");
+                GROUP BY lp.id
+                ORDER BY lp.id DESC
+                LIMIT 60");
     $homepagePackages = $db->resultSet();
 } catch (Exception $e) {
     $homepagePackages = [];
+}
+
+try {
+    $db->query("SELECT * FROM news_posts WHERE is_active = 1 ORDER BY sort_order ASC, published_at DESC, id DESC LIMIT 5");
+    $homepageNewsPosts = $db->resultSet();
+} catch (Exception $e) {
+    $homepageNewsPosts = [];
+}
+
+try {
+    $db->query("CREATE TABLE IF NOT EXISTS site_visits (id INT AUTO_INCREMENT PRIMARY KEY, session_id VARCHAR(128) NOT NULL, visited_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY unique_session_month (session_id, visited_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $db->execute();
+    if (($_SESSION['monthly_visit_recorded'] ?? '') !== date('Y-m')) {
+        $db->query("INSERT INTO site_visits (session_id, visited_at) VALUES (:session_id, NOW())");
+        $db->bind(':session_id', session_id());
+        $db->execute();
+        $_SESSION['monthly_visit_recorded'] = date('Y-m');
+    }
+    $db->query("SELECT COUNT(*) AS total FROM appointments");
+    $appointmentStats = $db->single();
+    $db->query("SELECT COUNT(DISTINCT h.id) AS total FROM hospitals h LEFT JOIN users u ON u.hospital_id = h.id AND u.role = 'hospital' WHERE u.id IS NULL OR COALESCE(u.hospital_approval_status, 'approved') = 'approved'");
+    $hospitalStats = $db->single();
+    $db->query("SELECT COUNT(*) AS total FROM doctors");
+    $doctorStats = $db->single();
+    $db->query("SELECT COUNT(*) AS total FROM site_visits WHERE visited_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')");
+    $visitStats = $db->single();
+    $homepageStats = [
+        'appointments' => (int)($appointmentStats['total'] ?? 0),
+        'hospitals' => (int)($hospitalStats['total'] ?? 0),
+        'doctors' => (int)($doctorStats['total'] ?? 0),
+        'visits' => (int)($visitStats['total'] ?? 0)
+    ];
+} catch (Exception $e) {
+    $homepageStats = ['appointments' => 0, 'hospitals' => 0, 'doctors' => 0, 'visits' => 0];
 }
 
 function homepagePriorityKey($hospital) {
@@ -124,13 +160,22 @@ function homepageBannerImageSrc($path) {
 function homepageHospitalLogo($hospital) {
     $name = $hospital['name'] ?? '';
     if (stripos($name, 'MEDLATEC') !== false) {
-        return $GLOBALS['base_url'] . '/uploads/hospitals/medlatec_cantho_logo.png';
+        return $GLOBALS['base_url'] . '/uploads/hospitals/medlatec_logo.png';
+    }
+    if (stripos($name, 'Long Châu') !== false || stripos($name, 'FPT') !== false) {
+        return $GLOBALS['base_url'] . '/uploads/hospitals/phuongchau_logo.png';
     }
     if (stripos($name, 'VNVC') !== false) {
-        return 'https://sanvieclamcantho.com/upload/imagelogo/vnvc1724469700.png';
+        return $GLOBALS['base_url'] . '/uploads/hospitals/8_logo_image_1779368204.webp';
     }
-    if (stripos($name, 'Long Châu') !== false) {
-        return 'https://cdn-new.topcv.vn/unsafe/https://static.topcv.vn/company_logos/IinkQQY7z2A7AQXZ84KKTNq83awObGLS_1650511186____11070390482b3374c7cee11f4b9f6fdf.png';
+    if (!empty($hospital['logo_url'])) {
+        $logoUrl = $hospital['logo_url'];
+        if (preg_match('#^https?://#', $logoUrl)) {
+            return $logoUrl;
+        }
+        if (file_exists(__DIR__ . '/' . ltrim($logoUrl, '/'))) {
+            return homepageImageSrc($logoUrl, '');
+        }
     }
     if (stripos($name, 'DIAG') !== false) {
         return $GLOBALS['base_url'] . '/uploads/hospitals/diag_logo.svg';
@@ -143,12 +188,6 @@ function homepageHospitalLogo($hospital) {
     }
     if (stripos($name, 'Đa khoa Trung ương') !== false || stripos($name, 'Trung ương') !== false) {
         return 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSlTz_v9XDRvF_FcHXFdA0GicixowqlMdgmQg&s';
-    }
-    if (!empty($hospital['logo_url'])) {
-        $logoUrl = $hospital['logo_url'];
-        if (preg_match('#^https?://#', $logoUrl) || file_exists(__DIR__ . '/' . ltrim($logoUrl, '/'))) {
-            return homepageImageSrc($logoUrl, '');
-        }
     }
     if (stripos($name, 'Da liễu') !== false || stripos($name, 'Da Liễu') !== false) {
         return 'https://benhviendalieucantho.vn/upload/image/logo/logobvdl.png';
@@ -179,6 +218,25 @@ function homepagePackageImage($package) {
 function homepagePackageLink($package) {
     return 'lab_package_booking.php?package_id=' . (int)$package['id'];
 }
+
+function homepageNewsImageSrc($path) {
+    if (empty($path)) {
+        return '';
+    }
+    return preg_match('#^https?://#', $path) ? $path : $GLOBALS['base_url'] . '/' . $path;
+}
+
+function homepageNewsLink($post) {
+    return !empty($post['link_url']) ? $post['link_url'] : '#';
+}
+
+function homepageNewsDate($post) {
+    $text = date('d/m/Y, H:i', strtotime($post['published_at']));
+    if (!empty($post['author'])) {
+        $text .= ' - ' . $post['author'];
+    }
+    return $text;
+}
 ?>
 
 <!-- Hero Section -->
@@ -192,7 +250,7 @@ function homepagePackageLink($package) {
     <div class="col-12 text-center position-relative pt-5 pb-5 px-3" style="z-index: 2;">
         <div class="mb-4">
             <h1 class="fw-extrabold text-uppercase mb-2" style="font-size: 2.2rem; color: #023f6d; letter-spacing: -0.5px; font-weight: 800;">Đặt lịch khám bệnh online</h1>
-            <p class="fs-5 fw-medium text-secondary" style="color: #475569 !important;">Giải pháp chăm sóc sức khỏe toàn diện tại Cần Thơ</p>
+            <p class="fs-5 fw-medium text-secondary" style="color: #475569 !important;">Giải pháp chăm sóc sức khỏe toàn diện</p>
         </div>
 
         <div class="row justify-content-center mb-4 mt-2">
@@ -395,35 +453,108 @@ function homepagePackageLink($package) {
 </div>
 
 <!-- Promotions/Banners Trượt Ngang -->
-<div class="row mb-5">
-    <div class="col-12 px-3 px-md-5">
-        <div id="bannerCarousel" class="carousel slide rounded-4 overflow-hidden shadow-sm" data-bs-ride="carousel" data-bs-interval="1800">
-            <div class="carousel-indicators">
-                <?php foreach ($homepageBanners as $index => $banner): ?>
-                    <button type="button" data-bs-target="#bannerCarousel" data-bs-slide-to="<?php echo $index; ?>" class="<?php echo $index === 0 ? 'active' : ''; ?>" <?php echo $index === 0 ? 'aria-current="true"' : ''; ?> aria-label="Slide <?php echo $index + 1; ?>"></button>
-                <?php endforeach; ?>
-            </div>
+<style>
+    .homepage-banner-section {
+        margin-top: 2.5rem;
+    }
+    .homepage-banner-shell {
+        max-width: 1165px;
+        margin: 0 auto;
+        padding: 0 12px;
+    }
+    .homepage-banner-carousel {
+        border-radius: 16px;
+        overflow: hidden;
+        background: #ffffff;
+        box-shadow: 0 18px 45px rgba(2, 63, 109, 0.08);
+    }
+    .homepage-banner-carousel .carousel-inner,
+    .homepage-banner-carousel .carousel-item {
+        height: clamp(250px, 28vw, 360px);
+    }
+    .homepage-banner-carousel img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        object-position: center;
+        display: block;
+        background: linear-gradient(90deg, #f7fbff 0%, #ffffff 50%, #f7fbff 100%);
+    }
+    .homepage-banner-carousel .carousel-indicators {
+        position: static;
+        margin: 1rem 0 0;
+        gap: 6px;
+    }
+    .homepage-banner-carousel .carousel-indicators [data-bs-target] {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        border: 0;
+        background-color: #d5dbe3;
+        opacity: 1;
+        transition: all 0.2s ease;
+    }
+    .homepage-banner-carousel .carousel-indicators .active {
+        width: 28px;
+        background-color: #00b5f1;
+    }
+    .homepage-banner-carousel .carousel-control-prev,
+    .homepage-banner-carousel .carousel-control-next {
+        width: 52px;
+        height: 52px;
+        top: 50%;
+        transform: translateY(-50%);
+        opacity: 0;
+        transition: opacity 0.2s ease;
+    }
+    .homepage-banner-carousel:hover .carousel-control-prev,
+    .homepage-banner-carousel:hover .carousel-control-next {
+        opacity: 1;
+    }
+    .homepage-banner-carousel .carousel-control-prev-icon,
+    .homepage-banner-carousel .carousel-control-next-icon {
+        width: 38px;
+        height: 38px;
+        border-radius: 999px;
+        background-size: 55%;
+        background-color: rgba(2, 63, 109, 0.55);
+    }
+    @media (max-width: 768px) {
+        .homepage-banner-carousel .carousel-inner,
+        .homepage-banner-carousel .carousel-item {
+            height: 180px;
+        }
+    }
+</style>
+<div class="homepage-banner-section mb-5 px-3 px-md-5">
+    <div class="homepage-banner-shell">
+        <div id="bannerCarousel" class="carousel slide homepage-banner-carousel" data-bs-ride="carousel" data-bs-interval="2500">
             <div class="carousel-inner">
                 <?php foreach ($homepageBanners as $index => $banner): ?>
                     <div class="carousel-item <?php echo $index === 0 ? 'active' : ''; ?>">
                         <?php if (!empty($banner['link_url'])): ?>
-                            <a href="<?php echo htmlspecialchars($banner['link_url']); ?>" target="_blank" rel="noopener noreferrer">
+                            <a href="<?php echo htmlspecialchars($banner['link_url']); ?>" class="d-block h-100">
                         <?php endif; ?>
-                        <img src="<?php echo htmlspecialchars(homepageBannerImageSrc($banner['image_path'])); ?>" class="d-block w-100" alt="<?php echo htmlspecialchars($banner['title']); ?>" style="height: 350px; object-fit: contain; background-color: #f8f9fa;">
+                        <img src="<?php echo htmlspecialchars(homepageBannerImageSrc($banner['image_path'])); ?>" alt="<?php echo htmlspecialchars($banner['title']); ?>">
                         <?php if (!empty($banner['link_url'])): ?>
                             </a>
                         <?php endif; ?>
                     </div>
                 <?php endforeach; ?>
             </div>
-            <button class="carousel-control-prev" type="button" data-bs-target="#bannerCarousel" data-bs-slide="prev" style="width: 5%;">
-                <span class="carousel-control-prev-icon bg-dark rounded-circle p-2" aria-hidden="true"></span>
+            <button class="carousel-control-prev" type="button" data-bs-target="#bannerCarousel" data-bs-slide="prev">
+                <span class="carousel-control-prev-icon" aria-hidden="true"></span>
                 <span class="visually-hidden">Previous</span>
             </button>
-            <button class="carousel-control-next" type="button" data-bs-target="#bannerCarousel" data-bs-slide="next" style="width: 5%;">
-                <span class="carousel-control-next-icon bg-dark rounded-circle p-2" aria-hidden="true"></span>
+            <button class="carousel-control-next" type="button" data-bs-target="#bannerCarousel" data-bs-slide="next">
+                <span class="carousel-control-next-icon" aria-hidden="true"></span>
                 <span class="visually-hidden">Next</span>
             </button>
+            <div class="carousel-indicators">
+                <?php foreach ($homepageBanners as $index => $banner): ?>
+                    <button type="button" data-bs-target="#bannerCarousel" data-bs-slide-to="<?php echo $index; ?>" class="<?php echo $index === 0 ? 'active' : ''; ?>" <?php echo $index === 0 ? 'aria-current="true"' : ''; ?> aria-label="Slide <?php echo $index + 1; ?>"></button>
+                <?php endforeach; ?>
+            </div>
         </div>
     </div>
 </div>
@@ -433,7 +564,7 @@ function homepagePackageLink($package) {
 <!-- Outstanding Facilities (Cơ sở y tế nổi bật) -->
 <div class="row mb-5 position-relative mt-5 bg-primary bg-opacity-10 py-5 rounded-4 px-3 px-md-4">
     <div class="col-12 text-center mb-4">
-        <h3 class="fw-bold mb-0 text-uppercase" style="color: #023f6d;">Các bệnh viện nổi bật ở Cần Thơ</h3>
+        <h3 class="fw-bold mb-0 text-uppercase" style="color: #023f6d;">Các bệnh viện nổi bật</h3>
     </div>
 
     <button class="btn btn-white rounded-circle shadow position-absolute top-50 start-0 translate-middle-y z-3 d-none d-md-flex align-items-center justify-content-center bg-white ms-3" style="width: 45px; height: 45px; border: 1px solid #e0e0e0;" onclick="document.getElementById('facilitiesScroll').scrollBy({left: -320, behavior: 'smooth'})">
@@ -469,6 +600,9 @@ function homepagePackageLink($package) {
     <button class="btn btn-white rounded-circle shadow position-absolute top-50 end-0 translate-middle-y z-3 d-none d-md-flex align-items-center justify-content-center bg-white me-3" style="width: 45px; height: 45px; border: 1px solid #e0e0e0;" onclick="document.getElementById('facilitiesScroll').scrollBy({left: 320, behavior: 'smooth'})">
         <i class="bi bi-chevron-right text-dark"></i>
     </button>
+    <div class="col-12 text-center mt-4">
+        <a href="facilities.php" class="btn btn-outline-primary rounded-pill px-4 py-2 fw-bold" style="border-width: 2px;">Xem tất cả <i class="bi bi-arrow-right ms-1"></i></a>
+    </div>
 </div>
 
 <!-- Comprehensive Healthcare Section -->
@@ -499,7 +633,7 @@ function homepagePackageLink($package) {
                     <div class="card-body p-3 d-flex flex-column bg-white">
                         <h6 class="card-title fw-bold mb-3" style="color:#023f6d !important; font-size:1.05rem; min-height:48px; line-height:1.4;"><?php echo htmlspecialchars($package['name']); ?></h6>
                         <div class="text-secondary small fw-medium mb-3" style="min-height:40px;"><i class="bi bi-hospital text-muted"></i> <?php echo htmlspecialchars($package['hospital_name']); ?> <i class="bi bi-patch-check-fill text-primary ms-1"></i></div>
-                        <div class="fw-bold mb-3" style="color:#f7941d; font-size:1.05rem;"><span class="border rounded-circle d-inline-flex justify-content-center align-items-center me-1" style="width:20px;height:20px;border-color:#f7941d !important;font-size:.8rem;"><i class="bi bi-currency-dollar"></i></span> <?php echo (float)$package['price'] > 0 ? number_format((float)$package['price'], 0, ',', '.') . 'đ' : 'Đang cập nhật'; ?></div>
+                        <div class="fw-bold mb-3" style="color:#f7941d; font-size:1.05rem;"><span class="border rounded-circle d-inline-flex justify-content-center align-items-center me-1" style="width:20px;height:20px;border-color:#f7941d !important;font-size:.8rem;"><i class="bi bi-currency-dollar"></i></span> <?php echo (float)($package['display_price'] ?? $package['price'] ?? 0) > 0 ? number_format((float)($package['display_price'] ?? $package['price']), 0, ',', '.') . 'đ' : 'Đang cập nhật'; ?></div>
                         <div class="mt-auto"><a href="<?php echo htmlspecialchars(homepagePackageLink($package)); ?>" class="btn btn-premium-primary w-100 py-2">Đặt khám ngay</a></div>
                     </div>
                 </div>
@@ -768,6 +902,14 @@ function homepagePackageLink($package) {
     color: #00b5f1 !important;
 }
 </style>
+<script>
+document.querySelectorAll('.specialty-hover').forEach(function (link) {
+    const label = link.textContent.replace(/\s+/g, ' ').trim();
+    if (label) {
+        link.href = 'search.php?kw=' + encodeURIComponent(label) + '&tab=subjects&page=1';
+    }
+});
+</script>
 
 <!-- Cảm nhận của khách hàng Section -->
 <div class="row mb-5 py-5 position-relative mx-0">
@@ -868,25 +1010,25 @@ function homepagePackageLink($package) {
                 <!-- Lượt khám -->
                 <div class="col-6 col-md-3">
                     <img src="https://img.icons8.com/ios/64/00b5f1/stethoscope.png" alt="Lượt khám" class="mb-3" style="width: 45px; height: 45px;">
-                    <h4 class="fw-bold text-dark mb-1">1K+</h4>
+                    <h4 class="fw-bold text-dark mb-1"><?php echo number_format($homepageStats['appointments']); ?></h4>
                     <p class="text-muted mb-0 fw-medium" style="font-size: 0.9rem;">Lượt khám</p>
                 </div>
                 <!-- Cơ sở Y tế -->
                 <div class="col-6 col-md-3">
                     <img src="https://img.icons8.com/ios/64/00b5f1/hospital-3.png" alt="Cơ sở Y tế" class="mb-3" style="width: 45px; height: 45px;">
-                    <h4 class="fw-bold text-dark mb-1">50+</h4>
+                    <h4 class="fw-bold text-dark mb-1"><?php echo number_format($homepageStats['hospitals']); ?></h4>
                     <p class="text-muted mb-0 fw-medium" style="font-size: 0.9rem;">Cơ sở Y tế</p>
                 </div>
                 <!-- Bác sĩ -->
                 <div class="col-6 col-md-3">
                     <img src="https://img.icons8.com/ios/64/00b5f1/medical-doctor.png" alt="Bác sĩ" class="mb-3" style="width: 45px; height: 45px;">
-                    <h4 class="fw-bold text-dark mb-1">1500+</h4>
-                    <p class="text-muted mb-0 fw-medium" scontyle="font-size: 0.9rem;">Bác sĩ</p>
+                    <h4 class="fw-bold text-dark mb-1"><?php echo number_format($homepageStats['doctors']); ?></h4>
+                    <p class="text-muted mb-0 fw-medium" style="font-size: 0.9rem;">Bác sĩ</p>
                 </div>
                 <!-- Lượt truy cập -->
                 <div class="col-6 col-md-3">
                     <img src="https://img.icons8.com/ios/64/00b5f1/visible--v1.png" alt="Lượt truy cập tháng" class="mb-3" style="width: 45px; height: 45px;">
-                    <h4 class="fw-bold text-dark mb-1">1K+</h4>
+                    <h4 class="fw-bold text-dark mb-1"><?php echo number_format($homepageStats['visits']); ?></h4>
                     <p class="text-muted mb-0 fw-medium" style="font-size: 0.9rem;">Lượt truy cập tháng</p>
                 </div>
             </div>
@@ -902,77 +1044,45 @@ function homepagePackageLink($package) {
     
     <div class="col-12 col-xl-10 mx-auto px-2 px-md-4">
         <div class="row g-4">
-            <!-- Main News (Left) -->
+            <?php if (count($homepageNewsPosts) > 0): ?>
+            <?php $mainNews = $homepageNewsPosts[0]; ?>
             <div class="col-lg-5 text-start">
-                <a href="#" class="text-decoration-none">
+                <a href="<?php echo htmlspecialchars(homepageNewsLink($mainNews)); ?>" class="text-decoration-none">
                     <div class="card shadow-sm border-0 rounded-4 h-100 overflow-hidden news-card">
-                        <img src="https://images.unsplash.com/photo-1570125909232-eb263c188f7e?q=80&w=800" class="card-img-top w-100" style="height: 260px; object-fit: cover;" alt="Nhà xe đưa đón">
+                        <img src="<?php echo htmlspecialchars(homepageNewsImageSrc($mainNews['image_path'])); ?>" class="card-img-top w-100" style="height: 260px; object-fit: cover;" alt="<?php echo htmlspecialchars($mainNews['title']); ?>">
                         <div class="card-body p-4 d-flex flex-column">
-                            <h5 class="card-title fw-bold text-dark mb-3" style="line-height: 1.5; color: #023f6d !important;">Gợi ý các nhà xe hỗ trợ đưa đón đến bệnh viện tại TP.HCM</h5>
-                            <p class="text-muted small mb-3">06/05/2026, 02:08</p>
-                            <p class="card-text text-dark text-opacity-75" style="font-size: 0.95rem;">Cập nhật danh sách các nhà xe uy tín chuyên đưa đón và trung chuyển bệnh nhân đến tận cổng bệnh viện. Tham khảo ngay để tìm được nhà xe phù hợp.</p>
+                            <h5 class="card-title fw-bold text-dark mb-3" style="line-height: 1.5; color: #023f6d !important;"><?php echo htmlspecialchars($mainNews['title']); ?></h5>
+                            <p class="text-muted small mb-3"><?php echo htmlspecialchars(homepageNewsDate($mainNews)); ?></p>
+                            <p class="card-text text-dark text-opacity-75" style="font-size: 0.95rem;"><?php echo htmlspecialchars($mainNews['excerpt'] ?? ''); ?></p>
                         </div>
                     </div>
                 </a>
             </div>
             
-            <!-- Side News (Right) -->
             <div class="col-lg-7 text-start">
                 <div class="row g-4">
-                    <!-- News 1 -->
+                    <?php foreach (array_slice($homepageNewsPosts, 1, 4) as $post): ?>
                     <div class="col-md-6">
-                        <a href="#" class="text-decoration-none">
+                        <a href="<?php echo htmlspecialchars(homepageNewsLink($post)); ?>" class="text-decoration-none">
                             <div class="card shadow-sm border-0 rounded-4 h-100 overflow-hidden news-card">
-                                <img src="https://images.unsplash.com/photo-1584515979956-d9f6e5d0a642?q=80&w=800" class="card-img-top w-100" style="height: 180px; object-fit: cover;" alt="Đau mắt đỏ">
+                                <img src="<?php echo htmlspecialchars(homepageNewsImageSrc($post['image_path'])); ?>" class="card-img-top w-100" style="height: 180px; object-fit: cover;" alt="<?php echo htmlspecialchars($post['title']); ?>">
                                 <div class="card-body p-3 d-flex flex-column">
-                                    <h6 class="card-title fw-bold text-dark mb-2" style="font-size: 0.95rem; line-height: 1.4; color: #023f6d !important;">Khám đau mắt đỏ ở đâu? 4 bệnh viện phòng khám uy tín TPHCM</h6>
-                                    <p class="text-muted small mb-0 mt-auto pt-2">06/05/2026, 02:08</p>
+                                    <h6 class="card-title fw-bold text-dark mb-2" style="font-size: 0.95rem; line-height: 1.4; color: #023f6d !important;"><?php echo htmlspecialchars($post['title']); ?></h6>
+                                    <p class="text-muted small mb-0 mt-auto pt-2"><?php echo htmlspecialchars(homepageNewsDate($post)); ?></p>
                                 </div>
                             </div>
                         </a>
                     </div>
-                    <!-- News 2 -->
-                    <div class="col-md-6">
-                        <a href="#" class="text-decoration-none">
-                            <div class="card shadow-sm border-0 rounded-4 h-100 overflow-hidden news-card">
-                                <img src="https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?q=80&w=800" class="card-img-top w-100" style="height: 180px; object-fit: cover;" alt="Khám bệnh online">
-                                <div class="card-body p-3 d-flex flex-column">
-                                    <h6 class="card-title fw-bold text-dark mb-2" style="font-size: 0.95rem; line-height: 1.4; color: #023f6d !important;">Khám bệnh online dịp lễ: An tâm cùng bác sĩ Medpro</h6>
-                                    <p class="text-muted small mb-0 mt-auto pt-2">29/04/2026, 05:36 - Uyển Nhi</p>
-                                </div>
-                            </div>
-                        </a>
-                    </div>
-                    <!-- News 3 -->
-                    <div class="col-md-6">
-                        <a href="#" class="text-decoration-none">
-                            <div class="card shadow-sm border-0 rounded-4 h-100 overflow-hidden news-card">
-                                <img src="https://images.unsplash.com/photo-1584516150909-c43483ee7932?q=80&w=800" class="card-img-top w-100" style="height: 180px; object-fit: cover;" alt="Viêm hô hấp trẻ em">
-                                <div class="card-body p-3 d-flex flex-column">
-                                    <h6 class="card-title fw-bold text-dark mb-2" style="font-size: 0.95rem; line-height: 1.4; color: #023f6d !important;">Bệnh viêm hô hấp ở trẻ em: dấu hiệu, nguyên nhân, điều trị</h6>
-                                    <p class="text-muted small mb-0 mt-auto pt-2">30/10/2024, 10:30 - Thanh Ngân</p>
-                                </div>
-                            </div>
-                        </a>
-                    </div>
-                    <!-- News 4 -->
-                    <div class="col-md-6">
-                        <a href="#" class="text-decoration-none">
-                            <div class="card shadow-sm border-0 rounded-4 h-100 overflow-hidden news-card">
-                                <img src="https://images.unsplash.com/photo-1542884841-9f546e727bca?q=80&w=800" class="card-img-top w-100" style="height: 180px; object-fit: cover;" alt="Bướu máu trẻ sơ sinh">
-                                <div class="card-body p-3 d-flex flex-column">
-                                    <h6 class="card-title fw-bold text-dark mb-2" style="font-size: 0.95rem; line-height: 1.4; color: #023f6d !important;">Bướu máu ở trẻ sơ sinh: từ nguyên nhân cho đến cách điều trị</h6>
-                                    <p class="text-muted small mb-0 mt-auto pt-2">29/10/2024, 04:23 - Uyển Nhi</p>
-                                </div>
-                            </div>
-                        </a>
-                    </div>
+                    <?php endforeach; ?>
                 </div>
             </div>
+            <?php else: ?>
+            <div class="col-12 text-center text-muted py-4">Chưa có tin tức.</div>
+            <?php endif; ?>
         </div>
         
         <div class="col-12 text-center mt-5">
-            <a href="#" class="text-decoration-none text-primary fw-medium" style="font-size: 1.05rem;">Xem tất cả <i class="bi bi-chevron-double-right" style="font-size: 0.9rem;"></i></a>
+            <a href="news.php" class="text-decoration-none text-primary fw-medium" style="font-size: 1.05rem;">Xem tất cả <i class="bi bi-chevron-double-right" style="font-size: 0.9rem;"></i></a>
         </div>
     </div>
 </div>

@@ -207,25 +207,26 @@ if ($showHeaderHotline && class_exists('Database')) {
                             </ul>
                         </li>
                         <li class="nav-item dropdown px-1 position-relative">
-                            <a class="nav-link dropdown-toggle text-dark" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <a class="nav-link dropdown-toggle text-dark" href="<?php echo $base_url; ?>/news.php" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                 Tin tức
                             </a>
                             <ul class="dropdown-menu border-0 shadow-sm mt-2 rounded-3 py-2 news-dropdown">
-                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="#">Tin dịch vụ</a></li>
-                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="#">Tin y tế</a></li>
-                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="#">Y học thường thức</a></li>
+                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="<?php echo $base_url; ?>/news.php?category=science">Tin tức y khoa</a></li>
+                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="<?php echo $base_url; ?>/news.php?category=service">Tin dịch vụ</a></li>
+                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="<?php echo $base_url; ?>/news.php?category=medical">Tin y tế</a></li>
+                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="<?php echo $base_url; ?>/news.php?category=common">Y học thường thức</a></li>
                             </ul>
                         </li>
                         <li class="nav-item dropdown px-1 position-relative">
-                            <a class="nav-link dropdown-toggle text-dark" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <a class="nav-link dropdown-toggle text-dark" href="<?php echo $base_url; ?>/guide.php" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                 Hướng dẫn
                             </a>
                             <ul class="dropdown-menu border-0 shadow-sm mt-2 rounded-3 py-2 guide-dropdown">
-                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="#">Đặt lịch khám</a></li>
-                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="#">Quy trình hoàn phí</a></li>
-                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="#">Câu hỏi thường gặp</a></li>
-                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="#">Quy trình đi khám</a></li>
-                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="#">Cộng đồng hỏi đáp khám chữa bệnh</a></li>
+                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="<?php echo $base_url; ?>/guide.php#dat-lich-kham">Đặt lịch khám</a></li>
+                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="<?php echo $base_url; ?>/guide.php#hoan-phi">Quy trình hoàn phí</a></li>
+                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="<?php echo $base_url; ?>/guide.php#faq">Câu hỏi thường gặp</a></li>
+                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="<?php echo $base_url; ?>/guide.php#quy-trinh-di-kham">Quy trình đi khám</a></li>
+                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="<?php echo $base_url; ?>/guide.php#hoi-dap">Cộng đồng hỏi đáp khám chữa bệnh</a></li>
                             </ul>
                         </li>
                         <li class="nav-item dropdown px-1 position-relative">
@@ -233,11 +234,9 @@ if ($showHeaderHotline && class_exists('Database')) {
                                 Liên hệ hợp tác
                             </a>
                             <ul class="dropdown-menu border-0 shadow-sm mt-2 rounded-3 py-2 partner-dropdown">
-                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="<?php echo $base_url; ?>/facilities.php">Cơ sở y tế</a></li>
-                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="#">Phòng mạch</a></li>
-                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="#">Quảng cáo</a></li>
-                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="#">Tuyển Dụng</a></li>
-                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="#">Về Medpro</a></li>
+                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="<?php echo $base_url; ?>/medical_partner.php">Cơ sở y tế</a></li>
+                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="<?php echo $base_url; ?>/advertising_partner.php">Quảng cáo</a></li>
+                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="#">Về MEDICAILBOOKING</a></li>
                             </ul>
                         </li>
                     </ul>

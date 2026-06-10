@@ -76,7 +76,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $id = (int)($_POST['id'] ?? 0);
         $title = trim($_POST['title'] ?? '');
+        $targetChoice = $_POST['target_choice'] ?? 'link';
         $linkUrl = trim($_POST['link_url'] ?? '');
+        if (strpos($targetChoice, 'hospital:') === 0) {
+            $hospitalId = (int)substr($targetChoice, 9);
+            if ($hospitalId > 0) {
+                $linkUrl = $base_url . '/facility_detail.php?id=' . $hospitalId;
+            }
+        }
         $sortOrder = (int)($_POST['sort_order'] ?? 1);
         $isActive = isset($_POST['is_active']) ? 1 : 0;
         $imagePath = trim($_POST['current_image_path'] ?? '');
@@ -110,6 +117,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+$db->query("SELECT id, name FROM hospitals ORDER BY CASE WHEN (logo_url IS NOT NULL AND logo_url <> '') OR (poster_url IS NOT NULL AND poster_url <> '') THEN 0 ELSE 1 END, id DESC");
+$hospitalRows = $db->resultSet();
+$hospitals = [];
+$seenHospitalNames = [];
+foreach ($hospitalRows as $hospital) {
+    $normalizedName = mb_strtolower($hospital['name'], 'UTF-8');
+    $normalizedName = str_replace(['bệnh viện', 'thành phố', 'tp.', 'tp', 'cần thơ'], '', $normalizedName);
+    $normalizedName = preg_replace('/\s+/', ' ', trim($normalizedName));
+    if (isset($seenHospitalNames[$normalizedName])) {
+        continue;
+    }
+    $seenHospitalNames[$normalizedName] = true;
+    $hospitals[] = $hospital;
+}
+
 $db->query('SELECT * FROM homepage_banners ORDER BY sort_order ASC, id ASC');
 $banners = $db->resultSet();
 ?>
@@ -121,7 +143,19 @@ $banners = $db->resultSet();
 <?php if ($error): ?><div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
 <?php if ($success): ?><div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div><?php endif; ?>
 
-<div class="card shadow-sm border-0 mb-4">
+<style>
+.banner-card,
+.banner-card .card-body {
+    overflow: visible;
+}
+.banner-target-list {
+    background: #ffffff;
+    max-height: 320px !important;
+    overflow-y: auto !important;
+}
+</style>
+
+<div class="card shadow-sm border-0 mb-4 banner-card">
     <div class="card-body">
         <h5 class="fw-bold mb-3">Thêm banner mới</h5>
         <form method="POST" enctype="multipart/form-data" class="row g-3">
@@ -130,7 +164,18 @@ $banners = $db->resultSet();
                 <label class="form-label fw-bold">Tiêu đề</label>
                 <input type="text" name="title" class="form-control" required>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-3 position-relative banner-target-wrap">
+                <label class="form-label fw-bold">Liên kết</label>
+                <input type="text" class="form-control banner-target-input" placeholder="Tìm hoặc chọn bệnh viện" value="Link tùy chỉnh" autocomplete="off">
+                <input type="hidden" name="target_choice" class="banner-target-choice" value="link">
+                <div class="list-group position-absolute start-0 end-0 mx-2 mt-1 shadow-sm d-none banner-target-list" style="z-index: 3000;">
+                    <button type="button" class="list-group-item list-group-item-action" data-value="link">Link tùy chỉnh</button>
+                    <?php foreach ($hospitals as $hospital): ?>
+                        <button type="button" class="list-group-item list-group-item-action" data-value="hospital:<?php echo (int)$hospital['id']; ?>"><?php echo htmlspecialchars($hospital['name']); ?></button>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <div class="col-md-3 banner-link-field">
                 <label class="form-label fw-bold">Link khi bấm</label>
                 <input type="url" name="link_url" class="form-control" placeholder="https://...">
             </div>
@@ -167,6 +212,14 @@ $banners = $db->resultSet();
                 </thead>
                 <tbody>
                     <?php foreach ($banners as $banner): ?>
+                        <?php
+                            $bannerLinkUrl = $banner['link_url'] ?? '';
+                            $bannerHospitalId = 0;
+                            if (preg_match('/facility_detail\.php\?id=(\d+)/', $bannerLinkUrl, $matches)) {
+                                $bannerHospitalId = (int)$matches[1];
+                            }
+                            $bannerTargetChoice = $bannerHospitalId > 0 ? 'hospital:' . $bannerHospitalId : 'link';
+                        ?>
                         <tr>
                             <td><img src="<?php echo htmlspecialchars(homepageBannerSrc($banner['image_path'], $base_url)); ?>" class="img-thumbnail" style="width: 160px; height: 70px; object-fit: cover;"></td>
                             <td>
@@ -180,7 +233,26 @@ $banners = $db->resultSet();
                                     <input type="hidden" name="id" value="<?php echo (int)$banner['id']; ?>">
                                     <input type="hidden" name="current_image_path" value="<?php echo htmlspecialchars($banner['image_path']); ?>">
                                     <div class="col-md-6"><input type="text" name="title" class="form-control form-control-sm" value="<?php echo htmlspecialchars($banner['title']); ?>" required></div>
-                                    <div class="col-md-6"><input type="url" name="link_url" class="form-control form-control-sm" value="<?php echo htmlspecialchars($banner['link_url'] ?? ''); ?>" placeholder="https://..."></div>
+                                    <div class="col-md-6 position-relative banner-target-wrap">
+                                        <?php
+                                            $bannerTargetLabel = 'Link tùy chỉnh';
+                                            foreach ($hospitals as $hospital) {
+                                                if ($bannerHospitalId === (int)$hospital['id']) {
+                                                    $bannerTargetLabel = $hospital['name'];
+                                                    break;
+                                                }
+                                            }
+                                        ?>
+                                        <input type="text" class="form-control form-control-sm banner-target-input" placeholder="Tìm hoặc chọn bệnh viện" value="<?php echo htmlspecialchars($bannerTargetLabel); ?>" autocomplete="off">
+                                        <input type="hidden" name="target_choice" class="banner-target-choice" value="<?php echo htmlspecialchars($bannerTargetChoice); ?>">
+                                        <div class="list-group position-absolute start-0 end-0 mx-2 mt-1 shadow-sm d-none banner-target-list" style="z-index: 3000;">
+                                            <button type="button" class="list-group-item list-group-item-action" data-value="link">Link tùy chỉnh</button>
+                                            <?php foreach ($hospitals as $hospital): ?>
+                                                <button type="button" class="list-group-item list-group-item-action" data-value="hospital:<?php echo (int)$hospital['id']; ?>"><?php echo htmlspecialchars($hospital['name']); ?></button>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 banner-link-field <?php echo $bannerHospitalId > 0 ? 'd-none' : ''; ?>"><input type="url" name="link_url" class="form-control form-control-sm" value="<?php echo htmlspecialchars($bannerHospitalId > 0 ? '' : $bannerLinkUrl); ?>" placeholder="https://..."></div>
                                     <div class="col-md-3"><input type="number" name="sort_order" class="form-control form-control-sm" value="<?php echo (int)$banner['sort_order']; ?>" min="1"></div>
                                     <div class="col-md-6"><input type="file" name="image_file" class="form-control form-control-sm" accept="image/*"></div>
                                     <div class="col-md-3"><label class="form-check-label small"><input type="checkbox" name="is_active" class="form-check-input" <?php echo $banner['is_active'] ? 'checked' : ''; ?>> Hiện</label></div>
@@ -204,5 +276,54 @@ $banners = $db->resultSet();
         </div>
     </div>
 </div>
+
+<script>
+document.querySelectorAll('form').forEach(function (form) {
+    const targetInput = form.querySelector('.banner-target-input');
+    const targetChoice = form.querySelector('.banner-target-choice');
+    const targetList = form.querySelector('.banner-target-list');
+    const linkField = form.querySelector('.banner-link-field');
+    if (!targetInput || !targetChoice || !targetList || !linkField) return;
+    const items = Array.from(targetList.querySelectorAll('button'));
+    function updateBannerTargetFields() {
+        linkField.classList.toggle('d-none', targetChoice.value !== 'link');
+    }
+    function filterTargetList() {
+        let keyword = targetInput.value.trim().toLowerCase();
+        if (targetChoice.value === 'link' && keyword === 'link tùy chỉnh') {
+            keyword = '';
+        }
+        items.forEach(function (item) {
+            item.classList.toggle('d-none', item.dataset.value !== 'link' && !item.textContent.toLowerCase().includes(keyword));
+        });
+        targetList.classList.remove('d-none');
+    }
+    targetInput.addEventListener('focus', filterTargetList);
+    targetInput.addEventListener('wheel', function (event) {
+        filterTargetList();
+        targetList.scrollTop += event.deltaY;
+        event.preventDefault();
+    });
+    targetInput.addEventListener('input', function () {
+        targetChoice.value = 'link';
+        updateBannerTargetFields();
+        filterTargetList();
+    });
+    items.forEach(function (item) {
+        item.addEventListener('click', function () {
+            targetInput.value = item.textContent.trim();
+            targetChoice.value = item.dataset.value;
+            targetList.classList.add('d-none');
+            updateBannerTargetFields();
+        });
+    });
+    document.addEventListener('click', function (event) {
+        if (!form.contains(event.target)) {
+            targetList.classList.add('d-none');
+        }
+    });
+    updateBannerTargetFields();
+});
+</script>
 
 <?php include 'includes/footer.php'; ?>

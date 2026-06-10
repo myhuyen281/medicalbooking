@@ -18,29 +18,13 @@
                     <h6 class="fw-bold mb-3" style="color: #023f6d;">Dịch vụ Y Tế</h6>
                     <ul class="list-unstyled" style="font-size: 0.85rem; line-height: 2;">
                         <li><a href="booking_at_facility.php" class="text-decoration-none text-muted">Đặt khám tại cơ sở</a></li>
-                        <li><a href="specialty_facilities.php" class="text-decoration-none text-muted">Đặt khám chuyên khoa</a></li>
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Gọi video với bác sĩ</a></li>
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Đặt lịch xét nghiệm</a></li>
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Đặt khám ngoài giờ</a></li>
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Giúp việc cá nhân</a></li>
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Khám doanh nghiệp</a></li>
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Đặt khám theo bác sĩ</a></li>
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Đặt lịch Chụp phim & Nội soi</a></li>
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Gói khám sức khỏe</a></li>
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Y tế tại nhà</a></li>
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Đặt lịch tiêm chủng</a></li>
-                        <li><a href="facilities.php" class="text-decoration-none text-info">Khám sức khỏe thông tư</a></li>
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Mua thuốc tại An Khang</a></li>
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Khám Tạo Hình Thẩm Mỹ</a></li>
-                    </ul>
-
-                    <h6 class="fw-bold mb-3 mt-4" style="color: #023f6d;">Liên hệ hợp tác</h6>
-                    <ul class="list-unstyled" style="font-size: 0.85rem; line-height: 2;">
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Cơ sở y tế</a></li>
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Phòng mạch</a></li>
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Doanh nghiệp</a></li>
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Quảng cáo</a></li>
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Tuyển Dụng</a></li>
+                        <li><a href="search.php?tab=subjects" class="text-decoration-none text-muted">Đặt khám chuyên khoa</a></li>
+                        <li><a href="doctor_booking.php" class="text-decoration-none text-muted">Đặt khám theo bác sĩ</a></li>
+                        <li><a href="lab_package_booking.php" class="text-decoration-none text-muted">Gói xét nghiệm</a></li>
+                        <li><a href="imaging_booking.php" class="text-decoration-none text-muted">Chụp phim & Nội soi</a></li>
+                        <li><a href="health_package_booking.php" class="text-decoration-none text-muted">Gói khám sức khỏe</a></li>
+                        <li><a href="vaccination_booking.php" class="text-decoration-none text-muted">Tiêm chủng</a></li>
+                        <li><a href="home_care_booking.php" class="text-decoration-none text-muted">Y tế tại nhà</a></li>
                     </ul>
                 </div>
 
@@ -48,20 +32,18 @@
                 <div class="col-lg-3 col-md-6 mb-4 mb-lg-0">
                     <h6 class="fw-bold mb-3" style="color: #023f6d;">Cơ sở y tế</h6>
                     <ul class="list-unstyled" style="font-size: 0.85rem; line-height: 2;">
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Bệnh viện công</a></li>
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Bệnh viện tư</a></li>
+                        <li><a href="facilities.php" class="text-decoration-none text-muted">Bệnh viện</a></li>
                         <li><a href="facilities.php" class="text-decoration-none text-muted">Phòng khám</a></li>
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Phòng mạch</a></li>
-                        <li><a href="lab_booking.php" class="text-decoration-none text-muted">Xét nghiệm</a></li>
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Y tế tại nhà</a></li>
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Tiêm chủng</a></li>
+                        <li><a href="lab_package_booking.php" class="text-decoration-none text-muted">Xét nghiệm</a></li>
+                        <li><a href="vaccination_booking.php" class="text-decoration-none text-muted">Tiêm chủng</a></li>
                     </ul>
 
                     <h6 class="fw-bold mb-3 mt-4" style="color: #023f6d;">Tin tức</h6>
                     <ul class="list-unstyled" style="font-size: 0.85rem; line-height: 2;">
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Tin dịch vụ</a></li>
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Tin Y Tế</a></li>
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Y Học thường thức</a></li>
+                        <li><a href="news.php?category=science" class="text-decoration-none text-muted">Tin tức y khoa</a></li>
+                        <li><a href="news.php?category=service" class="text-decoration-none text-muted">Tin dịch vụ</a></li>
+                        <li><a href="news.php?category=medical" class="text-decoration-none text-muted">Tin y tế</a></li>
+                        <li><a href="news.php?category=common" class="text-decoration-none text-muted">Y học thường thức</a></li>
                     </ul>
                 </div>
 
@@ -69,21 +51,16 @@
                 <div class="col-lg-3 col-md-6 mb-4 mb-lg-0">
                     <h6 class="fw-bold mb-3" style="color: #023f6d;">Hướng dẫn</h6>
                     <ul class="list-unstyled" style="font-size: 0.85rem; line-height: 2;">
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Cài đặt ứng dụng</a></li>
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Đặt lịch khám</a></li>
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Tư vấn khám bệnh qua video</a></li>
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Quy trình hoàn phí</a></li>
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Câu hỏi thường gặp</a></li>
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Quy trình đi khám</a></li>
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Cộng đồng hỏi đáp khám chữa bệnh</a></li>
+                        <li><a href="guide.php#dat-lich-kham" class="text-decoration-none text-muted">Đặt lịch khám</a></li>
+                        <li><a href="guide.php#hoan-phi" class="text-decoration-none text-muted">Quy trình hoàn phí</a></li>
+                        <li><a href="guide.php#faq" class="text-decoration-none text-muted">Câu hỏi thường gặp</a></li>
+                        <li><a href="guide.php#quy-trinh-di-kham" class="text-decoration-none text-muted">Quy trình đi khám</a></li>
                     </ul>
 
                     <h6 class="fw-bold mb-3 mt-4" style="color: #023f6d;">Về MedicailBooking</h6>
                     <ul class="list-unstyled" style="font-size: 0.85rem; line-height: 2;">
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Giới thiệu</a></li>
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Điều khoản dịch vụ</a></li>
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Chính sách bảo mật</a></li>
-                        <li><a href="facilities.php" class="text-decoration-none text-muted">Quy định sử dụng</a></li>
+                        <li><a href="index.php" class="text-decoration-none text-muted">Trang chủ</a></li>
+                        <li><a href="facilities.php" class="text-decoration-none text-muted">Danh sách cơ sở</a></li>
                     </ul>
                 </div>
             </div>

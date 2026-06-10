@@ -1,5 +1,6 @@
 <?php
 require_once '../../config/database.php';
+require_once '../../includes/otp_helper.php';
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -9,25 +10,55 @@ $base_url = 'http://' . $_SERVER['HTTP_HOST'] . '/MEDICAILBOOKING';
 $error = '';
 $success = '';
 $phone = '';
+$step = 'phone';
+$testOtpCode = '';
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $phone = trim($_POST['phone']);
+    $action = $_POST['action'] ?? 'send_otp';
 
-    if (empty($phone)) {
-        $error = "Vui lòng nhập số điện thoại.";
-    } else {
-        $db = new Database();
-        $db->query("SELECT id FROM users WHERE phone = :phone");
-        $db->bind(':phone', $phone);
-        $db->execute();
+    if ($action === 'send_otp' || $action === 'resend_otp') {
+        $phone = normalizeVietnamPhone($_POST['phone'] ?? '');
 
-        if ($db->rowCount() > 0) {
-            header("Location: login.php");
-            exit();
+        if (empty($phone)) {
+            $error = "Vui lòng nhập số điện thoại.";
+        } elseif (!isValidVietnamMobile($phone)) {
+            $error = "Số điện thoại không hợp lệ.";
         } else {
+            $db = new Database();
+            $db->query("SELECT id FROM users WHERE phone = :phone");
+            $db->bind(':phone', $phone);
+            $db->execute();
+
+            if ($db->rowCount() > 0) {
+                $error = "Số điện thoại này đã có tài khoản. Vui lòng đăng nhập hoặc nhập số khác.";
+            } else {
+                $otp = generateOtpCode();
+                storeRegistrationOtp($phone, $otp);
+
+                if (sendRegistrationOtp($phone, $otp)) {
+                    $step = 'otp';
+                    $success = ($action === 'resend_otp')
+                        ? "Đã gửi lại mã OTP tới số $phone."
+                        : "Mã OTP đã được gửi tới số $phone.";
+                } else {
+                    clearRegistrationOtp();
+                    $error = "Không gửi được SMS OTP: " . ($_SESSION['registration_otp_error'] ?? 'Vui lòng kiểm tra cấu hình Twilio.');
+                }
+            }
+        }
+    } elseif ($action === 'verify_otp') {
+        $phone = normalizeVietnamPhone($_POST['phone'] ?? '');
+        $otpInput = preg_replace('/\D+/', '', $_POST['otp'] ?? '');
+        $step = 'otp';
+
+        $result = verifyRegistrationOtp($phone, $otpInput);
+
+        if ($result === true) {
             header("Location: register_full.php?phone=" . urlencode($phone));
             exit();
         }
+
+        $error = $result;
     }
 }
 ?>
@@ -217,7 +248,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             position: relative;
             flex: 1;
         }
-        .phone-input {
+        .phone-input,
+        .otp-input {
             height: 54px;
             border-radius: 12px;
             border: 1.5px solid #e2e8f0;
@@ -229,7 +261,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             transition: all 0.25s ease;
             width: 100%;
         }
-        .phone-input:focus {
+        .otp-input {
+            text-align: center;
+            letter-spacing: 8px;
+            padding: 0 18px;
+            font-size: 1.25rem;
+        }
+        .phone-input:focus,
+        .otp-input:focus {
             border-color: #00b5f1;
             background: #ffffff;
             box-shadow: 0 0 0 4px rgba(0, 181, 241, 0.12);
@@ -300,6 +339,25 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             transform: translateY(-2px);
             box-shadow: 0 8px 22px rgba(0, 181, 241, 0.4);
         }
+        .otp-test-box {
+            background: #ecfeff;
+            border: 1px dashed #06b6d4;
+            color: #023f6d;
+            border-radius: 12px;
+            padding: 12px 14px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            margin-bottom: 18px;
+            text-align: center;
+        }
+        .resend-btn {
+            border: none;
+            background: transparent;
+            color: #00b5f1;
+            font-weight: 800;
+            margin-top: 14px;
+            padding: 0;
+        }
         .right-text-container {
             z-index: 2;
             text-align: center;
@@ -363,26 +421,41 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <div class="brand">Medi<span>cailBooking</span></div>
                 <div class="brand-subtitle">Đặt khám nhanh</div>
 
-                <h1 class="auth-title">Nhập số điện thoại để<br>đăng ký và tiếp tục</h1>
+                <h1 class="auth-title"><?php echo $step === 'otp' ? 'Nhập mã OTP để<br>xác thực số điện thoại' : 'Nhập số điện thoại để<br>đăng ký và tiếp tục'; ?></h1>
 
                 <?php if ($error): ?>
                     <div class="alert alert-danger py-2" style="border-radius: 10px; font-size: 0.9rem; font-weight: 600;"><?php echo htmlspecialchars($error); ?></div>
                 <?php endif; ?>
+                <?php if ($success): ?>
+                    <div class="alert alert-success py-2" style="border-radius: 10px; font-size: 0.9rem; font-weight: 600;"><?php echo htmlspecialchars($success); ?></div>
+                <?php endif; ?>
 
-                <form method="POST" action="">
-                    <div class="phone-row">
-                        <div class="country-code">
-                            <img class="flag-vn" src="https://flagcdn.com/w40/vn.png" alt="VN">
-                            <span>+84</span>
+                <?php if ($step === 'otp'): ?>
+                    <form method="POST" action="">
+                        <input type="hidden" name="action" value="verify_otp">
+                        <input type="hidden" name="phone" value="<?php echo htmlspecialchars($phone); ?>">
+                        <input type="tel" name="otp" id="otpInput" class="form-control otp-input mb-3" placeholder="______" maxlength="6" inputmode="numeric" required autofocus autocomplete="off">
+                        <button type="submit" id="submitBtn" class="continue-btn">Xác thực OTP</button>
+                    </form>
+                    <form method="POST" action="" class="text-center">
+                        <input type="hidden" name="action" value="resend_otp">
+                        <input type="hidden" name="phone" value="<?php echo htmlspecialchars($phone); ?>">
+                        <button type="submit" class="resend-btn">Gửi lại mã OTP</button>
+                    </form>
+                <?php else: ?>
+                    <form method="POST" action="">
+                        <input type="hidden" name="action" value="send_otp">
+                        <div class="phone-row">
+                            <div class="country-code"><img src="https://flagcdn.com/w20/vn.png" class="flag-vn" alt="VN"> +84</div>
+                            <div class="phone-input-wrap">
+                                <input type="tel" name="phone" id="phoneInput" class="form-control phone-input" placeholder="Nhập số điện thoại" value="<?php echo htmlspecialchars($phone); ?>" required autofocus autocomplete="off">
+                                <button type="button" id="clearPhone" class="clear-phone">×</button>
+                            </div>
                         </div>
-                        <div class="phone-input-wrap">
-                            <input type="tel" name="phone" id="phoneInput" class="form-control phone-input" placeholder="Nhập số điện thoại" value="<?php echo htmlspecialchars($phone); ?>" maxlength="10" inputmode="numeric" required autofocus autocomplete="off">
-                            <button type="button" id="clearPhone" class="clear-phone" aria-label="Xóa số điện thoại">&times;</button>
-                        </div>
-                    </div>
-                    <div id="phoneError" class="phone-error">Vui lòng nhập đúng 10 số điện thoại</div>
-                    <button type="submit" id="submitBtn" class="continue-btn">Tiếp tục</button>
-                </form>
+                        <div id="phoneError" class="phone-error">Số điện thoại phải có 10 chữ số.</div>
+                        <button type="submit" id="submitBtn" class="continue-btn mt-3">Tiếp tục</button>
+                    </form>
+                <?php endif; ?>
 
                 <div class="login-link">Đã có tài khoản? <a href="login.php">Đăng nhập bằng email</a></div>
                 <div class="login-link mt-2"><a href="register_hospital.php" style="color: #023f6d;">Đăng ký tài khoản cơ sở y tế đối tác</a></div>
@@ -405,17 +478,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         const submitBtn = document.getElementById('submitBtn');
 
         function updatePhoneState() {
+            if (!phoneInput) {
+                submitBtn.classList.add('active');
+                return;
+            }
+
             const val = phoneInput.value;
             const isValidLength = val.length === 10;
             const hasStarted = val.length > 0;
             
-            // Toggle error text visibility
             phoneError.classList.toggle('show', hasStarted && !isValidLength);
-            
-            // Toggle reset/clear button
             clearPhone.classList.toggle('show', hasStarted);
             
-            // Toggle button interactive active classes
             if (isValidLength) {
                 submitBtn.classList.add('active');
                 submitBtn.removeAttribute('disabled');
@@ -425,18 +499,26 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             }
         }
 
-        phoneInput.addEventListener('input', function () {
-            this.value = this.value.replace(/\D/g, '').slice(0, 10);
-            updatePhoneState();
-        });
+        if (phoneInput) {
+            phoneInput.addEventListener('input', function () {
+                this.value = this.value.replace(/\D/g, '').slice(0, 10);
+                updatePhoneState();
+            });
 
-        clearPhone.addEventListener('click', function () {
-            phoneInput.value = '';
-            updatePhoneState();
-            phoneInput.focus();
-        });
+            clearPhone.addEventListener('click', function () {
+                phoneInput.value = '';
+                updatePhoneState();
+                phoneInput.focus();
+            });
+        }
 
-        // Initialize state
+        const otpInput = document.getElementById('otpInput');
+        if (otpInput) {
+            otpInput.addEventListener('input', function () {
+                this.value = this.value.replace(/\D/g, '').slice(0, 6);
+            });
+        }
+
         updatePhoneState();
     </script>
 </body>

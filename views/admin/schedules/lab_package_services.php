@@ -37,7 +37,7 @@ if (!$package || ($isHospitalAdmin && (int)$package['hospital_id'] !== (int)$cur
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $bookingFlow = in_array($_POST['booking_flow'] ?? 'service_first', ['specialty_first', 'service_first'], true) ? $_POST['booking_flow'] : 'service_first';
+    $bookingFlow = in_array($_POST['booking_flow'] ?? 'service_first', ['specialty_first', 'service_first', 'service_only'], true) ? $_POST['booking_flow'] : 'service_first';
     $specialtyNames = array_values(array_filter(array_map('trim', $_POST['specialty_name'] ?? []), 'strlen'));
     $db->query("UPDATE lab_packages SET booking_flow = :booking_flow, booking_specialties = :booking_specialties WHERE id = :id");
     $db->bind(':booking_flow', $bookingFlow);
@@ -129,12 +129,13 @@ $services = $db->resultSet();
         <form method="post">
             <input type="hidden" name="package_id" value="<?php echo (int)$packageId; ?>">
             <input type="hidden" name="category" value="<?php echo htmlspecialchars($category); ?>">
-            <?php $currentFlow = in_array($package['booking_flow'] ?? '', ['specialty_first', 'service_first'], true) ? $package['booking_flow'] : 'service_first'; $currentSpecialties = json_decode($package['booking_specialties'] ?? '[]', true); if (!is_array($currentSpecialties)) $currentSpecialties = []; ?>
+            <?php $currentFlow = in_array($package['booking_flow'] ?? '', ['specialty_first', 'service_first', 'service_only'], true) ? $package['booking_flow'] : 'service_first'; $currentSpecialties = json_decode($package['booking_specialties'] ?? '[]', true); if (!is_array($currentSpecialties)) $currentSpecialties = []; ?>
             <div class="border rounded-3 p-3 mb-3" style="background:#eefcff; border-color:#00a8f0 !important;">
                 <label class="form-label fw-bold">Kiểu đặt lịch</label>
                 <select name="booking_flow" id="bookingFlow" class="form-select mb-3" style="max-width: 440px;">
                     <option value="specialty_first" <?php echo $currentFlow === 'specialty_first' ? 'selected' : ''; ?>>Chọn chuyên khoa trước, rồi chọn dịch vụ</option>
                     <option value="service_first" <?php echo $currentFlow === 'service_first' ? 'selected' : ''; ?>>Chọn dịch vụ trước, rồi chọn chuyên khoa</option>
+                    <option value="service_only" <?php echo $currentFlow === 'service_only' ? 'selected' : ''; ?>>Chỉ chọn dịch vụ</option>
                 </select>
                 <label class="form-label fw-bold">Danh sách chuyên khoa</label>
                 <div id="specialtyRows" class="d-flex flex-column gap-2 mb-2">
