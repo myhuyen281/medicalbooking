@@ -71,7 +71,7 @@ $bookingForms = [];
         <?php if (count($bookingForms) > 0): ?>
             <?php foreach ($bookingForms as $form): ?>
                 <?php
-                    $serviceLink = !empty($form['is_package']) ? 'lab_package_booking.php?package_id=' . (int)$form['package_id'] : 'specialty_booking.php?facility=' . urlencode($facilityName) . '&booking_form_id=' . (int)$form['id'];
+                    $serviceLink = !empty($form['is_package']) ? 'lab_package_booking.php?package_id=' . (int)$form['package_id'] : 'specialty_booking.php?id=' . (int)$hospital['id'] . '&facility=' . urlencode($facilityName) . '&booking_form_id=' . (int)$form['id'];
                     $cardTitle = $form['name'];
                     $cardIcon = !empty($form['service_icon']) ? $form['service_icon'] : 'bi-calendar-check';
                 ?>

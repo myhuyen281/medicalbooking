@@ -209,9 +209,6 @@ function homepageImageSrc($path, $fallback) {
 }
 
 function homepagePackageImage($package) {
-    if (!empty($package['icon_path'])) {
-        return homepageImageSrc($package['icon_path'], '');
-    }
     return homepageHospitalLogo(['name' => $package['hospital_name'] ?? '', 'logo_url' => $package['logo_url'] ?? '']);
 }
 

@@ -7,6 +7,7 @@ $facilityAddress = isset($_GET['address']) ? trim($_GET['address']) : 'Thành ph
 $selectedServiceId = isset($_GET['service_id']) ? (int)$_GET['service_id'] : 0;
 $selectedInsuranceValue = $_GET['insurance'] ?? '';
 $bookingFormId = isset($_GET['booking_form_id']) ? (int)$_GET['booking_form_id'] : 0;
+$facilityId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $db = new Database();
 try {
     $db->query("ALTER TABLE hospital_services ADD COLUMN booking_form_id INT NULL AFTER hospital_id");
@@ -83,7 +84,6 @@ try {
     $db->execute();
 } catch (Exception $e) {
 }
-$facilityId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 if ($facilityId > 0) {
     $db->query("SELECT * FROM hospitals WHERE id = :id LIMIT 1");
     $db->bind(':id', $facilityId);
@@ -108,6 +108,7 @@ $bookingAdvanceDays = 30;
 $bookingTimeSlots = [];
 $bookingFlow = 'service_only';
 $serviceSpecialties = [];
+$selectedSpecialtyName = '';
 function serviceSpecialtyValues($value) {
     $decoded = json_decode((string)$value, true);
     if (is_array($decoded)) {
@@ -135,7 +136,9 @@ if ($hospital) {
         $db->bind(':hospital_id', $hospital['id']);
         $bookingForm = $db->single();
         $bookingFormName = strtolower($bookingForm['name'] ?? '');
-        $bookingFlow = (($bookingForm['target'] ?? '') === 'doctor' || strpos($bookingFormName, 'chuyên gia') !== false) ? 'doctor_first' : 'service_first';
+        if (($bookingForm['target'] ?? '') === 'doctor' || strpos($bookingFormName, 'chuyên gia') !== false) {
+            $bookingFlow = 'doctor_first';
+        }
     }
     if (!empty($hospital['booking_time_slots'])) {
         $decodedSlots = json_decode($hospital['booking_time_slots'], true);
@@ -164,6 +167,8 @@ if ($hospital) {
     $selectedServiceWeekdaysForJs = [];
     $selectedServiceText = '<i class="bi bi-hand-index-thumb-fill me-2" style="color: #00a8f0;"></i> Chọn dịch vụ';
     if ($selectedService) {
+        $selectedServiceSpecialtyValues = serviceSpecialtyValues($selectedService['specialty_name'] ?? '');
+        $selectedSpecialtyName = $selectedServiceSpecialtyValues[0] ?? '';
         $selectedServiceWeekdaysForJs = array_values(array_filter(explode(',', (string)($selectedService['schedule_text'] ?? '')), 'strlen'));
         $selectedServiceText = '<div><i class="bi bi-hand-index-thumb-fill me-2" style="color: #00a8f0;"></i>' . htmlspecialchars($selectedService['name']) . ' - ' . htmlspecialchars($selectedServicePriceDisplay) . '</div>';
         if (!empty($selectedService['requires_insurance']) && in_array($selectedInsuranceValue, ['Có', 'Không'], true)) {
@@ -221,6 +226,17 @@ if ($hospital) {
             $doctors[$index]['image_display'] = !empty($doctor['doctor_image_url']) ? $doctor['doctor_image_url'] : 'https://ui-avatars.com/api/?name=' . urlencode($doctor['full_name']) . '&background=eaf7ff&color=00a8f0&size=160';
         }
     }
+    foreach ($services as $service) {
+        $specialtyNames = serviceSpecialtyValues($service['specialty_name'] ?? '');
+        foreach ($specialtyNames as $specialtyName) {
+            if (!in_array($specialtyName, $serviceSpecialties, true)) {
+                $serviceSpecialties[] = $specialtyName;
+            }
+        }
+    }
+    if ($bookingFlow === 'service_only' && count($serviceSpecialties) > 0) {
+        $bookingFlow = 'specialty_first';
+    }
     if ($bookingFlow === 'specialty_first') {
         $db->query("SELECT DISTINCT COALESCE(NULLIF(d.treatment_text, ''), s.name) AS specialty_name
                     FROM doctors d
@@ -232,15 +248,6 @@ if ($hospital) {
             $specialtyName = trim($doctorSpecialty['specialty_name'] ?? '');
             if ($specialtyName !== '' && !in_array($specialtyName, $serviceSpecialties, true)) {
                 $serviceSpecialties[] = $specialtyName;
-            }
-        }
-    } else {
-        foreach ($services as $service) {
-            $specialtyNames = serviceSpecialtyValues($service['specialty_name'] ?? '');
-            foreach ($specialtyNames as $specialtyName) {
-                if (!in_array($specialtyName, $serviceSpecialties, true)) {
-                    $serviceSpecialties[] = $specialtyName;
-                }
             }
         }
     }
@@ -290,23 +297,23 @@ if ($hospital) {
                     <?php if ($bookingFlow === 'specialty_first' && count($serviceSpecialties) > 0): ?>
                         <div class="mb-3">
                             <label class="form-label fw-bold">Chuyên khoa <span class="text-danger">*</span></label>
-                            <button type="button" class="btn btn-outline-info w-100 text-start d-flex align-items-center justify-content-between rounded-3 py-2 px-3" data-bs-toggle="modal" data-bs-target="#specialtyModal" style="border-color: #00a8f0; color: #023f6d;"><div id="selectedSpecialtyText"><i class="bi bi-stethoscope me-2" style="color: #00a8f0;"></i> Chọn chuyên khoa</div><i class="bi bi-chevron-right"></i></button>
+                            <button type="button" class="btn btn-outline-info w-100 text-start d-flex align-items-center justify-content-between rounded-3 py-2 px-3" onclick="openBookingModal('specialtyModal')" style="border-color: #00a8f0; color: #023f6d;"><div id="selectedSpecialtyText"><i class="bi bi-stethoscope me-2" style="color: #00a8f0;"></i> <?php echo $selectedSpecialtyName !== '' ? htmlspecialchars($selectedSpecialtyName) : 'Chọn chuyên khoa'; ?></div><i class="bi bi-chevron-right"></i></button>
                         </div>
                     <?php endif; ?>
                     <?php if ($bookingFlow === 'doctor_first'): ?>
                         <div class="mb-3">
                             <label class="form-label fw-bold">Bác sĩ <span class="text-danger">*</span></label>
-                            <button type="button" class="btn btn-outline-info w-100 text-start d-flex align-items-center justify-content-between rounded-3 py-2 px-3" data-bs-toggle="modal" data-bs-target="#doctorModal" style="border-color: #00a8f0; color: #023f6d;"><div id="selectedDoctorText"><i class="bi bi-person-badge me-2" style="color: #00a8f0;"></i> Chọn bác sĩ</div><i class="bi bi-chevron-right"></i></button>
+                            <button type="button" class="btn btn-outline-info w-100 text-start d-flex align-items-center justify-content-between rounded-3 py-2 px-3" onclick="openBookingModal('doctorModal')" style="border-color: #00a8f0; color: #023f6d;"><div id="selectedDoctorText"><i class="bi bi-person-badge me-2" style="color: #00a8f0;"></i> Chọn bác sĩ</div><i class="bi bi-chevron-right"></i></button>
                         </div>
                     <?php endif; ?>
-                    <div class="mb-3">
+                    <div class="mb-3 <?php echo ($bookingFlow === 'specialty_first' && count($serviceSpecialties) > 0 && !$selectedService && !$selectedServiceId) ? 'opacity-50' : ''; ?>" id="serviceField">
                         <label class="form-label fw-bold">Dịch vụ <span class="text-danger">*</span></label>
-                        <button type="button" id="serviceSelectButton" class="btn btn-outline-info w-100 text-start d-flex align-items-center justify-content-between rounded-3 py-2 px-3" data-bs-toggle="modal" data-bs-target="#serviceModal" style="border-color: #00a8f0; color: #023f6d;" <?php echo $bookingFlow === 'doctor_first' ? 'disabled' : ''; ?>><div id="selectedServiceText"><?php echo $selectedServiceText; ?></div><i class="bi bi-chevron-right"></i></button>
+                        <button type="button" id="serviceSelectButton" class="btn btn-outline-info w-100 text-start d-flex align-items-center justify-content-between rounded-3 py-2 px-3" onclick="openBookingModal('serviceModal')" style="border-color: #00a8f0; color: #023f6d;" <?php echo ($bookingFlow === 'doctor_first' || ($bookingFlow === 'specialty_first' && count($serviceSpecialties) > 0 && !$selectedService && !$selectedServiceId)) ? 'disabled' : ''; ?>><div id="selectedServiceText"><?php echo $selectedServiceText; ?></div><i class="bi bi-chevron-right"></i></button>
                     </div>
                     <?php if ($bookingFlow === 'service_first' && count($serviceSpecialties) > 0): ?>
-                        <div class="mb-3">
+                        <div class="mb-3 opacity-50" id="specialtyField">
                             <label class="form-label fw-bold">Chuyên khoa <span class="text-danger">*</span></label>
-                            <button type="button" class="btn btn-outline-info w-100 text-start d-flex align-items-center justify-content-between rounded-3 py-2 px-3" data-bs-toggle="modal" data-bs-target="#specialtyModal" style="border-color: #00a8f0; color: #023f6d;"><div id="selectedSpecialtyText"><i class="bi bi-stethoscope me-2" style="color: #00a8f0;"></i> Chọn chuyên khoa</div><i class="bi bi-chevron-right"></i></button>
+                            <button type="button" class="btn btn-outline-info w-100 text-start d-flex align-items-center justify-content-between rounded-3 py-2 px-3" onclick="openBookingModal('specialtyModal')" style="border-color: #00a8f0; color: #023f6d;" disabled><div id="selectedSpecialtyText"><i class="bi bi-stethoscope me-2" style="color: #00a8f0;"></i> <?php echo $selectedSpecialtyName !== '' ? htmlspecialchars($selectedSpecialtyName) : 'Chọn chuyên khoa'; ?></div><i class="bi bi-chevron-right"></i></button>
                         </div>
                     <?php endif; ?>
 
@@ -367,8 +374,8 @@ if ($hospital) {
                     <?php foreach ($serviceSpecialties as $specialtyName): ?>
                         <div class="rounded-3 p-3 border specialty-option" role="button" data-specialty="<?php echo htmlspecialchars($specialtyName); ?>">
                             <div class="fw-bold" style="color: #00a8f0;"><i class="bi bi-stethoscope me-2"></i><?php echo htmlspecialchars($specialtyName); ?></div>
-                            </a>
-                        <?php endforeach; ?>
+                        </div>
+                    <?php endforeach; ?>
                 </div>
             </div>
         </div>
@@ -388,7 +395,7 @@ if ($hospital) {
                         <span class="input-group-text border-0 bg-white text-muted"><i class="bi bi-search"></i></span>
                         <input type="text" id="doctorSearchInput" class="form-control border-0 shadow-none py-3" placeholder="Tìm kiếm bác sĩ...">
                     </div>
-                    <button type="button" id="doctorFilterButton" class="btn btn-light border rounded-4 px-3 fw-semibold" style="color:#023f6d;" data-bs-toggle="modal" data-bs-target="#doctorFilterModal"><i class="bi bi-sliders me-1"></i> Lọc</button>
+                    <button type="button" id="doctorFilterButton" class="btn btn-light border rounded-4 px-3 fw-semibold" style="color:#023f6d;" onclick="openBookingModal('doctorFilterModal')"><i class="bi bi-sliders me-1"></i> Lọc</button>
                 </div>
                 <div id="doctorList" class="d-flex flex-column gap-3" style="max-height: 448px; overflow-y: auto;">
                     <?php if (count($doctors) > 0): ?>
@@ -466,7 +473,7 @@ if ($hospital) {
                                 $serviceScheduleLabels = array_filter($serviceScheduleLabels);
                                 $serviceSpecialtyList = serviceSpecialtyValues($service['specialty_name'] ?? '');
                             ?>
-                            <a href="specialty_booking.php?facility=<?php echo urlencode($facilityName); ?><?php echo $bookingFormId > 0 ? '&booking_form_id=' . (int)$bookingFormId : ''; ?>&service_id=<?php echo (int)$service['id']; ?>" class="rounded-3 p-3 border service-option d-block text-decoration-none" role="button" onclick="if (this.dataset.requiresInsurance === '1' && this.querySelector('.insurance-choice')?.classList.contains('d-none')) { event.preventDefault(); this.querySelector('.insurance-choice').classList.remove('d-none'); this.querySelector('.insurance-choice').classList.add('d-flex'); }" data-specialties="<?php echo htmlspecialchars(json_encode($serviceSpecialtyList, JSON_UNESCAPED_UNICODE)); ?>" data-service="<?php echo htmlspecialchars($service['name']); ?>" data-weekdays="<?php echo htmlspecialchars(implode(',', $serviceWeekdays)); ?>" data-detail="<?php echo htmlspecialchars($service['detail_text'] ?? ''); ?>" data-requires-insurance="<?php echo (int)($service['requires_insurance'] ?? 0); ?>" data-price="<?php echo number_format($service['price'], 0, ',', '.'); ?> đ">
+                            <a href="specialty_booking.php?id=<?php echo (int)$hospital['id']; ?>&facility=<?php echo urlencode($facilityName); ?><?php echo $bookingFormId > 0 ? '&booking_form_id=' . (int)$bookingFormId : ''; ?>&service_id=<?php echo (int)$service['id']; ?>" class="rounded-3 p-3 border service-option d-block text-decoration-none" role="button" onclick="if (bookingFlow === 'specialty_first' && !selectedSpecialty) { event.preventDefault(); return false; } if (this.dataset.requiresInsurance === '1' && this.querySelector('.insurance-choice')?.classList.contains('d-none')) { event.preventDefault(); this.querySelector('.insurance-choice').classList.remove('d-none'); this.querySelector('.insurance-choice').classList.add('d-flex'); }" data-specialties="<?php echo htmlspecialchars(json_encode($serviceSpecialtyList, JSON_UNESCAPED_UNICODE)); ?>" data-service="<?php echo htmlspecialchars($service['name']); ?>" data-weekdays="<?php echo htmlspecialchars(implode(',', $serviceWeekdays)); ?>" data-detail="<?php echo htmlspecialchars($service['detail_text'] ?? ''); ?>" data-requires-insurance="<?php echo (int)($service['requires_insurance'] ?? 0); ?>" data-price="<?php echo number_format($service['price'], 0, ',', '.'); ?> đ">
                                 <div class="fw-bold mb-1" style="color: #00a8f0;"><i class="bi <?php echo htmlspecialchars($service['service_icon'] ?? 'bi-calendar2-check'); ?> me-2"></i><?php echo htmlspecialchars($service['name']); ?></div>
                                 <div class="small" style="color: #023f6d;">Lịch khám: <?php echo htmlspecialchars(count($serviceScheduleLabels) ? implode(', ', $serviceScheduleLabels) : 'Đang cập nhật'); ?></div>
                                 <div class="fw-bold" style="color: #ff9f1c;">Giá: <?php echo number_format($service['price'], 0, ',', '.'); ?>đ</div>
@@ -530,6 +537,8 @@ if ($hospital) {
 </div>
 
 <style>
+.modal { z-index: 2000; }
+.modal-backdrop { z-index: 1990; }
 .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
 .calendar-grid > div, .calendar-day { min-height: 48px; display: flex; align-items: center; justify-content: center; border: 1px solid #f1f1f1; }
 .calendar-day { background: #f8fbff; color: #64748b; }
@@ -541,12 +550,12 @@ if ($hospital) {
 
 <script>
 const bookingFlow = '<?php echo $bookingFlow; ?>';
-const patientStepUrl = 'booking_patient.php?facility=<?php echo urlencode($facilityName); ?>&address=<?php echo urlencode($facilityAddress); ?>';
-let selectedSpecialty = <?php echo (in_array($bookingFlow, ['specialty_first', 'service_first'], true) && count($serviceSpecialties) > 0) ? 'false' : 'true'; ?>;
+const patientStepUrl = 'booking_patient.php?id=<?php echo (int)($hospital['id'] ?? 0); ?>&facility=<?php echo urlencode($facilityName); ?>&address=<?php echo urlencode($facilityAddress); ?><?php echo $bookingFormId > 0 ? '&booking_form_id=' . (int)$bookingFormId : ''; ?>';
+let selectedSpecialty = <?php echo ((in_array($bookingFlow, ['specialty_first', 'service_first'], true) && count($serviceSpecialties) > 0 && $selectedSpecialtyName === '') ? 'false' : 'true'); ?>;
 let selectedDoctor = bookingFlow === 'doctor_first' ? false : true;
 
 let selectedDoctorId = '';
-let selectedService = <?php echo $selectedService ? 'true' : 'false'; ?>;
+let selectedService = <?php echo ($selectedService || $selectedServiceId > 0) ? 'true' : 'false'; ?>;
 let selectedInsurance = true;
 let pendingServiceDetail = '';
 let selectedServiceWeekdays = <?php echo json_encode($selectedServiceWeekdaysForJs); ?>;
@@ -554,18 +563,29 @@ let selectedServiceSpecialties = [];
 let selectedDoctorDates = [];
 let selectedDoctorSlots = {};
 let selectedDateKey = '';
+let selectedDate = false;
+let selectedTime = false;
 let calendarMonth = new Date();
 const bookingAdvanceDays = <?php echo (int)$bookingAdvanceDays; ?>;
-const specialtySelectButton = document.querySelector('[data-bs-target="#specialtyModal"]');
+const specialtySelectButton = document.querySelector('#specialtyField button');
+const serviceSelectButton = document.getElementById('serviceSelectButton');
+const specialtyField = document.getElementById('specialtyField');
+const serviceField = document.getElementById('serviceField');
 
-function updateSpecialtySelectAvailability() {
-    if (bookingFlow !== 'service_first' || !specialtySelectButton) {
-        return;
+function updateSelectionAvailability() {
+    if (bookingFlow === 'service_first' && specialtySelectButton && specialtyField) {
+        specialtySelectButton.disabled = !selectedService;
+        specialtyField.classList.toggle('opacity-50', !selectedService);
+        specialtySelectButton.style.cursor = selectedService ? 'pointer' : 'not-allowed';
+        specialtySelectButton.title = selectedService ? '' : 'Vui lòng chọn dịch vụ trước';
     }
-    specialtySelectButton.disabled = !selectedService;
-    specialtySelectButton.style.opacity = selectedService ? '1' : '0.6';
-    specialtySelectButton.style.cursor = selectedService ? 'pointer' : 'not-allowed';
-    specialtySelectButton.title = selectedService ? '' : 'Vui lòng chọn dịch vụ trước';
+    if (bookingFlow === 'specialty_first' && serviceSelectButton && serviceField) {
+        const canSelectService = selectedSpecialty || selectedService;
+        serviceSelectButton.disabled = !canSelectService;
+        serviceField.classList.toggle('opacity-50', !canSelectService);
+        serviceSelectButton.style.cursor = canSelectService ? 'pointer' : 'not-allowed';
+        serviceSelectButton.title = canSelectService ? '' : 'Vui lòng chọn chuyên khoa trước';
+    }
 }
 
 function cleanupModalBackdrop() {
@@ -577,9 +597,35 @@ function cleanupModalBackdrop() {
     document.body.style.removeProperty('padding-right');
 }
 
+function closeBookingModal(modalId) {
+    const modalElement = document.getElementById(modalId);
+    if (!modalElement) {
+        cleanupModalBackdrop();
+        return;
+    }
+    const modal = bootstrap.Modal.getInstance(modalElement);
+    if (modal) {
+        modal.hide();
+    }
+    modalElement.classList.remove('show');
+    modalElement.style.display = 'none';
+    modalElement.setAttribute('aria-hidden', 'true');
+    modalElement.removeAttribute('aria-modal');
+    modalElement.removeAttribute('role');
+    cleanupModalBackdrop();
+}
+
+function openBookingModal(modalId) {
+    cleanupModalBackdrop();
+    const modalElement = document.getElementById(modalId);
+    if (modalElement) {
+        bootstrap.Modal.getOrCreateInstance(modalElement).show();
+    }
+}
+
 function updateContinueButton() {
     const continueButton = document.getElementById('continueButton');
-    if (selectedSpecialty && selectedDoctor && selectedService && selectedInsurance) {
+    if (selectedSpecialty && selectedDoctor && selectedService && selectedInsurance && selectedDate && selectedTime) {
         continueButton.disabled = false;
         continueButton.style.backgroundColor = '#00b5f1';
     } else {
@@ -711,12 +757,15 @@ function renderCalendar() {
                     item.classList.remove('selected');
                 });
                 cell.classList.add('selected');
+                selectedDate = true;
+                selectedTime = false;
                 renderDateOptions(bookingFlow === 'doctor_first' ? [] : selectedServiceWeekdays, date);
                 if (bookingFlow === 'doctor_first') {
                     const dateKey = date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
                     renderDoctorTimeOptions(dateKey);
                 }
-                bootstrap.Modal.getInstance(document.getElementById('calendarModal')).hide();
+                closeBookingModal('calendarModal');
+                updateContinueButton();
             });
         }
         calendarDays.appendChild(cell);
@@ -861,7 +910,7 @@ document.getElementById('applyDoctorFilters')?.addEventListener('click', functio
         cleanupModalBackdrop();
         const doctorModalElement = document.getElementById('doctorModal');
         if (!doctorModalElement.classList.contains('show')) {
-            new bootstrap.Modal(doctorModalElement).show();
+            openBookingModal('doctorModal');
         }
     }, 150);
 });
@@ -884,7 +933,7 @@ document.querySelectorAll('.doctor-option').forEach(function (button) {
             selectedDoctorSlots = {};
         }
         selectedDateKey = '';
-        updateSpecialtySelectAvailability();
+        updateSelectionAvailability();
         const doctorDisplayName = doctorName.replace(/\s*\|.*$/, '').replace(/^(BS\.?|ThS\.?|TS\.?|ThS\.BS\.?|ThS\.BS|BS\.ThS\.BS)\s*/i, '').trim();
         document.getElementById('selectedDoctorText').innerHTML = '<i class="bi bi-person-badge me-2" style="color: #00a8f0;"></i> ' + doctorDisplayName;
         document.getElementById('selectedServiceText').innerHTML = '<i class="bi bi-hand-index-thumb-fill me-2" style="color: #00a8f0;"></i> Chọn dịch vụ';
@@ -900,12 +949,13 @@ document.querySelectorAll('.doctor-option').forEach(function (button) {
             item.style.borderColor = '';
             item.style.backgroundColor = '';
         });
+        selectedDate = false;
+        selectedTime = false;
         document.getElementById('dateOptions').classList.add('d-none');
         document.getElementById('timeOptions').classList.add('d-none');
         document.getElementById('datePlaceholder').classList.remove('d-none');
         document.getElementById('timePlaceholder').classList.remove('d-none');
-        bootstrap.Modal.getInstance(document.getElementById('doctorModal')).hide();
-        cleanupModalBackdrop();
+        closeBookingModal('doctorModal');
         updateContinueButton();
     });
 });
@@ -919,8 +969,7 @@ document.querySelectorAll('.specialty-option').forEach(function (button) {
         }
         document.getElementById('selectedSpecialtyText').innerHTML = '<i class="bi bi-stethoscope me-2" style="color: #00a8f0;"></i>' + specialtyName;
         if (bookingFlow === 'specialty_first') {
-        document.getElementById('selectedServiceText').innerHTML = '<i class="bi bi-hand-index-thumb-fill me-2" style="color: #00a8f0;"></i> Chọn dịch vụ';
-        document.getElementById('serviceSelectButton')?.removeAttribute('disabled');
+            document.getElementById('selectedServiceText').innerHTML = '<i class="bi bi-hand-index-thumb-fill me-2" style="color: #00a8f0;"></i> Chọn dịch vụ';
         }
         document.querySelectorAll('.specialty-option').forEach(function (item) {
             item.style.borderColor = '';
@@ -942,8 +991,8 @@ document.querySelectorAll('.specialty-option').forEach(function (button) {
             document.getElementById('datePlaceholder').classList.remove('d-none');
             document.getElementById('timePlaceholder').classList.remove('d-none');
         }
-        bootstrap.Modal.getInstance(document.getElementById('specialtyModal')).hide();
-        cleanupModalBackdrop();
+        closeBookingModal('specialtyModal');
+        updateSelectionAvailability();
         updateContinueButton();
     });
 });
@@ -993,6 +1042,8 @@ function selectServiceOption(option) {
     option.classList.add('active');
     option.style.borderColor = '#00a8f0';
     option.style.backgroundColor = '#eefcff';
+    selectedDate = false;
+    selectedTime = false;
     document.getElementById('datePlaceholder').classList.add('d-none');
     renderDateOptions(bookingFlow === 'doctor_first' ? [] : serviceWeekdays);
     document.getElementById('dateOptions').classList.remove('d-none');
@@ -1006,27 +1057,25 @@ function selectServiceOption(option) {
         document.getElementById('timeOptions').classList.remove('d-none');
     }
     selectedService = true;
-    updateSpecialtySelectAvailability();
+    updateSelectionAvailability();
     updateContinueButton();
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('serviceModal')).hide();
+    closeBookingModal('serviceModal');
 }
 
 
 document.getElementById('serviceModal').addEventListener('show.bs.modal', function (event) {
     if (bookingFlow === 'specialty_first' && !selectedSpecialty) {
         event.preventDefault();
-        cleanupModalBackdrop();
-        new bootstrap.Modal(document.getElementById('specialtyModal')).show();
+        openBookingModal('specialtyModal');
         return;
     }
     if (bookingFlow === 'doctor_first' && !selectedDoctor) {
         event.preventDefault();
-        cleanupModalBackdrop();
-        new bootstrap.Modal(document.getElementById('doctorModal')).show();
+        openBookingModal('doctorModal');
     }
 });
 
-updateSpecialtySelectAvailability();
+updateSelectionAvailability();
 if (selectedService) {
     document.getElementById('datePlaceholder').classList.add('d-none');
     renderDateOptions(bookingFlow === 'doctor_first' ? [] : selectedServiceWeekdays);
@@ -1044,8 +1093,7 @@ document.getElementById('serviceModal').addEventListener('hidden.bs.modal', func
         document.getElementById('serviceDetailContent').innerHTML = pendingServiceDetail.replace(/\n/g, '<br>');
         pendingServiceDetail = '';
         setTimeout(function () {
-            cleanupModalBackdrop();
-            new bootstrap.Modal(document.getElementById('serviceDetailModal'), { backdrop: false }).show();
+            openBookingModal('serviceDetailModal');
         }, 150);
     }
 });
@@ -1075,7 +1123,7 @@ document.addEventListener('click', function (event) {
     if (event.target.closest('#openCalendarButton')) {
         calendarMonth = new Date();
         renderCalendar();
-        new bootstrap.Modal(document.getElementById('calendarModal')).show();
+        openBookingModal('calendarModal');
         return;
     }
 
@@ -1092,9 +1140,22 @@ document.addEventListener('click', function (event) {
     button.style.border = '1px solid #00a8f0';
     button.style.backgroundColor = '#eefcff';
     button.style.color = '#00a8f0';
+    if (button.classList.contains('date-card') && !button.id) {
+        selectedDate = true;
+        selectedTime = false;
+        document.querySelectorAll('.time-card').forEach(function (item) {
+            item.style.border = '';
+            item.style.backgroundColor = '';
+            item.style.color = '#023f6d';
+        });
+    }
+    if (button.classList.contains('time-card')) {
+        selectedTime = true;
+    }
     if (bookingFlow === 'doctor_first' && button.classList.contains('date-card') && button.dataset.date) {
         renderDoctorTimeOptions(button.dataset.date);
     }
+    updateContinueButton();
 });
 </script>
 
