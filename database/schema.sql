@@ -1,7 +1,7 @@
 -- Giai đoạn 2: Thiết kế Cơ sở dữ liệu cho Hệ thống Đặt lịch Khám bệnh
 
-CREATE DATABASE IF NOT EXISTS medical_booking_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE medical_booking_db;
+CREATE DATABASE IF NOT EXISTS medical_booking CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE medical_booking;
 
 -- Bảng Người dùng (dung chung hoặc tách riêng)
 CREATE TABLE users (

@@ -29,9 +29,9 @@ function generateOtpCode() {
     return (string) random_int(100000, 999999);
 }
 
-function storeRegistrationOtp($phone, $otp) {
+function storeRegistrationOtp($email, $otp) {
     $_SESSION['registration_otp'] = [
-        'phone' => $phone,
+        'email' => $email,
         'code_hash' => password_hash($otp, PASSWORD_DEFAULT),
         'expires_at' => time() + 300,
         'attempts' => 0,
@@ -47,11 +47,11 @@ function clearRegistrationOtp() {
     unset($_SESSION['registration_otp']);
 }
 
-function verifyRegistrationOtp($phone, $otp) {
+function verifyRegistrationOtp($email, $otp) {
     $otpData = getRegistrationOtp();
 
-    if (!$otpData || ($otpData['phone'] ?? '') !== $phone) {
-        return 'Không tìm thấy mã OTP cho số điện thoại này.';
+    if (!$otpData || ($otpData['email'] ?? '') !== $email) {
+        return 'Không tìm thấy mã OTP cho email này.';
     }
 
     if (($otpData['expires_at'] ?? 0) < time()) {
@@ -71,7 +71,7 @@ function verifyRegistrationOtp($phone, $otp) {
     }
 
     $_SESSION['registration_otp']['verified'] = true;
-    $_SESSION['registration_verified_phone'] = $phone;
+    $_SESSION['registration_verified_email'] = $email;
 
     return true;
 }
@@ -131,15 +131,21 @@ function sendSmtpMail($toEmail, $subject, $body) {
     smtpCommand($connection, 'RCPT TO:<' . $toEmail . '>', [250, 251]);
     smtpCommand($connection, 'DATA', 354);
 
+    $encodedFromName = '=?UTF-8?B?' . base64_encode(SMTP_FROM_NAME) . '?=';
+    $encodedSubject = '=?UTF-8?B?' . base64_encode($subject) . '?=';
+    $fromDomain = substr(strrchr(SMTP_FROM_EMAIL, '@'), 1) ?: 'localhost';
     $headers = [];
-    $headers[] = 'From: ' . SMTP_FROM_NAME . ' <' . SMTP_FROM_EMAIL . '>';
+    $headers[] = 'From: ' . $encodedFromName . ' <' . SMTP_FROM_EMAIL . '>';
     $headers[] = 'To: <' . $toEmail . '>';
-    $headers[] = 'Subject: ' . $subject;
+    $headers[] = 'Subject: ' . $encodedSubject;
+    $headers[] = 'Date: ' . date('r');
+    $headers[] = 'Message-ID: <' . bin2hex(random_bytes(16)) . '@' . $fromDomain . '>';
     $headers[] = 'MIME-Version: 1.0';
     $headers[] = 'Content-Type: text/plain; charset=UTF-8';
     $headers[] = 'Content-Transfer-Encoding: 8bit';
 
-    fwrite($connection, implode("\r\n", $headers) . "\r\n\r\n" . $body . "\r\n.\r\n");
+    $safeBody = str_replace(["\r\n.", "\n."], ["\r\n..", "\n.."], $body);
+    fwrite($connection, implode("\r\n", $headers) . "\r\n\r\n" . $safeBody . "\r\n.\r\n");
     $response = smtpRead($connection);
     $code = (int) substr($response, 0, 3);
 
@@ -195,19 +201,20 @@ function sendVonageSms($toPhone, $message) {
     return true;
 }
 
-function sendRegistrationOtp($phone, $otp) {
-    if (VONAGE_API_KEY === 'your-vonage-api-key' || VONAGE_API_SECRET === 'your-vonage-api-secret') {
-        $_SESSION['registration_otp_dev_code'] = $otp;
-        return true;
-    }
-
-    $message = "Ma OTP MedicailBooking cua ban la: $otp. Ma het han sau 5 phut. Khong chia se ma nay.";
+function sendRegistrationOtp($email, $otp) {
+    $subject = 'Mã OTP đăng ký MedicailBooking';
+    $message = "Mã OTP MedicailBooking của bạn là: $otp. Mã hết hạn sau 5 phút. Không chia sẻ mã này.";
 
     try {
         unset($_SESSION['registration_otp_dev_code']);
-        sendVonageSms($phone, $message);
+        sendSmtpMail($email, $subject, $message);
         return true;
     } catch (Exception $e) {
+        if (SMTP_USERNAME === 'your-email@gmail.com' || SMTP_PASSWORD === 'your-app-password') {
+            $_SESSION['registration_otp_dev_code'] = $otp;
+            return true;
+        }
+
         $_SESSION['registration_otp_error'] = $e->getMessage();
         return false;
     }

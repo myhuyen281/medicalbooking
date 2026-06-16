@@ -106,6 +106,38 @@ if ($showHeaderHotline && class_exists('Database')) {
             0% { transform: translateX(0); }
             100% { transform: translateX(-50%); }
         }
+        .dropdown-item {
+            color: #495057;
+        }
+        .dropdown-item:hover {
+            background-color: #e7f5ff;
+            color: #0dcaf0;
+        }
+        .patient-account-dropdown {
+            width: 350px;
+            max-width: calc(100vw - 24px);
+            z-index: 3000;
+            border-radius: 0 0 16px 16px !important;
+            overflow: hidden;
+            background: linear-gradient(180deg, #ffffff 0%, #fff8ed 100%);
+        }
+        .patient-account-dropdown.show {
+            display: block;
+        }
+        .patient-account-dropdown .dropdown-item {
+            color: #023f6d;
+            font-weight: 600;
+        }
+        .patient-account-dropdown .dropdown-item:hover {
+            background-color: #e9f8ff;
+            color: #00a8e8;
+        }
+        .patient-account-avatar {
+            width: 42px;
+            height: 42px;
+            background: #d9f5ff;
+            color: #00a8e8;
+        }
     </style>
 </head>
 <body style="background-color: #f8f9fa;">
@@ -120,20 +152,48 @@ if ($showHeaderHotline && class_exists('Database')) {
                             <a class="btn btn-outline-info rounded-pill btn-sm fw-bold px-3 text-info border-info" href="<?php echo $base_url; ?>/views/admin/dashboard.php">
                                 <i class="bi bi-person-circle"></i> <?php echo $_SESSION['role'] == 'hospital' ? 'Quản lý bệnh viện' : 'Trang quản trị'; ?>
                             </a>
-                        <?php else: ?>
-                            <a class="btn btn-outline-info rounded-pill btn-sm fw-bold px-3 text-info border-info" href="<?php echo $base_url; ?>/views/patient/dashboard.php">
-                                <i class="bi bi-person-circle"></i> <?php echo htmlspecialchars($_SESSION['full_name']); ?>
-                            </a>
+                            <a href="<?php echo $base_url; ?>/views/auth/logout.php" class="text-danger fw-semibold ms-1" style="font-size:0.9rem;">Thoát</a>
+                         <?php else: ?>
+                            <!-- Patient Dropdown - Medpro Style -->
+                            <div class="dropdown position-relative">
+                                <button class="btn btn-info rounded-pill btn-sm fw-bold px-3 text-white border-0 dropdown-toggle" 
+                                        type="button" 
+                                        id="patientAccountDropdown"
+                                        data-bs-toggle="dropdown" 
+                                        data-bs-auto-close="outside"
+                                        aria-expanded="false"
+                                        style="background: linear-gradient(135deg, #00d4ff 0%, #00a8e8 100%); font-size: 0.9rem; height: 34px; box-shadow: 0 2px 8px rgba(0,168,232,0.3);">
+                                    <i class="bi bi-person-circle me-1"></i><?php echo htmlspecialchars($_SESSION['full_name']); ?>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0 py-0 patient-account-dropdown" aria-labelledby="patientAccountDropdown">
+                                    <li class="px-3 py-3">
+                                        <div class="d-flex align-items-center">
+                                            <div class="patient-account-avatar rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0 fs-5 fw-bold">
+                                                <i class="bi bi-person-fill"></i>
+                                            </div>
+                                            <div>
+                                                <div class="text-muted small">Xin chào,</div>
+                                                <div class="fw-bold text-info" style="font-size: 17px;"><?php echo htmlspecialchars($_SESSION['phone'] ?: $_SESSION['full_name']); ?></div>
+                                            </div>
+                                        </div>
+                                    </li>
+                                    <li><a class="dropdown-item py-3 px-3" href="<?php echo $base_url; ?>/views/patient/records.php"><i class="bi bi-file-medical me-2"></i>Hồ sơ bệnh nhân</a></li>
+                                    <li><a class="dropdown-item py-3 px-3" href="#"><i class="bi bi-file-earmark-text me-2"></i>Phiếu khám bệnh</a></li>
+                                    <li><a class="dropdown-item py-3 px-3" href="#"><i class="bi bi-bell me-2"></i>Thông báo</a></li>
+                                    <li><hr class="dropdown-divider my-1"></li>
+                                    <li><a class="dropdown-item py-3 px-3 text-danger" href="<?php echo $base_url; ?>/views/auth/logout.php"><i class="bi bi-box-arrow-right me-2"></i>Đăng xuất</a></li>
+                                    <li class="px-3 py-3"><small class="text-muted">Cập nhật mới nhất: <?php echo date('d/m/Y'); ?></small></li>
+                                </ul>
+                            </div>
                         <?php endif; ?>
-                        <a href="<?php echo $base_url; ?>/views/auth/logout.php" class="text-danger dropdown-item d-inline fw-semibold ms-1" style="width: auto;">Thoát</a>
                     <?php else: ?>
                         <a href="<?php echo $base_url; ?>/views/auth/register.php" class="btn btn-outline-info rounded-pill btn-sm fw-bold px-3 text-info border-info" style="color: #0dcaf0;">
                             <i class="bi bi-person-fill"></i> Tài khoản
                         </a>
                     <?php endif; ?>
-                    
-                    <!-- Language Dropdown -->
-                    <div class="dropdown">
+                     
+                    <!-- Language Dropdown (temporarily disabled) -->
+                    <!-- <div class="dropdown">
                         <button class="btn btn-sm dropdown-toggle border-0 px-1" type="button" data-bs-toggle="dropdown">
                             <img src="https://flagcdn.com/w20/vn.png" alt="VN">
                         </button>
@@ -141,7 +201,7 @@ if ($showHeaderHotline && class_exists('Database')) {
                             <li><a class="dropdown-item" href="#"><img src="https://flagcdn.com/w20/vn.png" alt="VN" class="me-2"> Tiếng Việt</a></li>
                             <li><a class="dropdown-item" href="#"><img src="https://flagcdn.com/w20/gb.png" alt="EN" class="me-2"> English</a></li>
                         </ul>
-                    </div>
+                    </div> -->
                 </div>
             </div>
         </div>
@@ -296,7 +356,8 @@ if ($showHeaderHotline && class_exists('Database')) {
             setTimeout(headerSearchTypeEffect, 1000);
         }
 
-        document.querySelectorAll('.navbar .dropdown').forEach(function (item) {
+        // Only apply hover to navbar dropdowns (not top bar)
+        document.querySelectorAll('#navbarMain .dropdown').forEach(function (item) {
             const toggle = item.querySelector('[data-bs-toggle="dropdown"]');
             const menu = item.querySelector('.dropdown-menu');
             if (!toggle || !menu) return;
@@ -306,7 +367,7 @@ if ($showHeaderHotline && class_exists('Database')) {
 
             item.addEventListener('mouseenter', function () {
                 clearTimeout(timer);
-                document.querySelectorAll('.navbar .dropdown-menu.show').forEach(function (openMenu) {
+                document.querySelectorAll('#navbarMain .dropdown-menu.show').forEach(function (openMenu) {
                     if (openMenu !== menu) {
                         const openToggle = openMenu.closest('.dropdown').querySelector('[data-bs-toggle="dropdown"]');
                         bootstrap.Dropdown.getOrCreateInstance(openToggle).hide();

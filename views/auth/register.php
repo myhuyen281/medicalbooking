@@ -9,52 +9,52 @@ if (session_status() === PHP_SESSION_NONE) {
 $base_url = 'http://' . $_SERVER['HTTP_HOST'] . '/MEDICAILBOOKING';
 $error = '';
 $success = '';
-$phone = '';
-$step = 'phone';
+$email = '';
+$step = 'email';
 $testOtpCode = '';
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $action = $_POST['action'] ?? 'send_otp';
 
     if ($action === 'send_otp' || $action === 'resend_otp') {
-        $phone = normalizeVietnamPhone($_POST['phone'] ?? '');
+        $email = trim($_POST['email'] ?? '');
 
-        if (empty($phone)) {
-            $error = "Vui lòng nhập số điện thoại.";
-        } elseif (!isValidVietnamMobile($phone)) {
-            $error = "Số điện thoại không hợp lệ.";
+        if (empty($email)) {
+            $error = "Vui lòng nhập email.";
+        } elseif (!isValidEmail($email)) {
+            $error = "Email không hợp lệ.";
         } else {
             $db = new Database();
-            $db->query("SELECT id FROM users WHERE phone = :phone");
-            $db->bind(':phone', $phone);
+            $db->query("SELECT id FROM users WHERE email = :email");
+            $db->bind(':email', $email);
             $db->execute();
 
             if ($db->rowCount() > 0) {
-                $error = "Số điện thoại này đã có tài khoản. Vui lòng đăng nhập hoặc nhập số khác.";
+                $error = "Email này đã có tài khoản. Vui lòng đăng nhập hoặc nhập email khác.";
             } else {
                 $otp = generateOtpCode();
-                storeRegistrationOtp($phone, $otp);
+                storeRegistrationOtp($email, $otp);
 
-                if (sendRegistrationOtp($phone, $otp)) {
+                if (sendRegistrationOtp($email, $otp)) {
                     $step = 'otp';
                     $success = ($action === 'resend_otp')
-                        ? "Đã gửi lại mã OTP tới số $phone."
-                        : "Mã OTP đã được gửi tới số $phone.";
+                        ? "Đã gửi lại mã OTP tới email $email."
+                        : "Mã OTP đã được gửi tới email $email.";
                 } else {
                     clearRegistrationOtp();
-                    $error = "Không gửi được SMS OTP: " . ($_SESSION['registration_otp_error'] ?? 'Vui lòng kiểm tra cấu hình Twilio.');
+                    $error = "Không gửi được email OTP: " . ($_SESSION['registration_otp_error'] ?? 'Vui lòng kiểm tra cấu hình SMTP.');
                 }
             }
         }
     } elseif ($action === 'verify_otp') {
-        $phone = normalizeVietnamPhone($_POST['phone'] ?? '');
+        $email = trim($_POST['email'] ?? '');
         $otpInput = preg_replace('/\D+/', '', $_POST['otp'] ?? '');
         $step = 'otp';
 
-        $result = verifyRegistrationOtp($phone, $otpInput);
+        $result = verifyRegistrationOtp($email, $otpInput);
 
         if ($result === true) {
-            header("Location: register_full.php?phone=" . urlencode($phone));
+            header("Location: register_full.php?email=" . urlencode($email));
             exit();
         }
 
@@ -339,16 +339,47 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             transform: translateY(-2px);
             box-shadow: 0 8px 22px rgba(0, 181, 241, 0.4);
         }
-        .otp-test-box {
-            background: #ecfeff;
-            border: 1px dashed #06b6d4;
-            color: #023f6d;
-            border-radius: 12px;
-            padding: 12px 14px;
-            font-size: 0.95rem;
-            font-weight: 700;
-            margin-bottom: 18px;
+        .otp-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 48px);
+            gap: 12px;
+            justify-content: center;
+            margin: 24px 0 28px;
+        }
+        .otp-box {
+            width: 48px;
+            height: 54px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 9px;
+            background: #f1f5f9;
             text-align: center;
+            font-size: 1.35rem;
+            font-weight: 800;
+            color: #1e293b;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+        .otp-box:focus {
+            border-color: #1e9bff;
+            background: #ffffff;
+            box-shadow: 0 0 0 3px rgba(30, 155, 255, 0.18);
+        }
+        .otp-instruction {
+            color: #0f172a;
+            font-size: 1rem;
+            line-height: 1.6;
+            text-align: center;
+            margin-bottom: 6px;
+        }
+        .otp-email {
+            color: #000;
+            font-weight: 800;
+        }
+        .otp-timer {
+            color: #111827;
+            font-weight: 800;
+            text-align: center;
+            margin: 10px 0 0;
         }
         .resend-btn {
             border: none;
@@ -421,44 +452,52 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <div class="brand">Medi<span>cailBooking</span></div>
                 <div class="brand-subtitle">Đặt khám nhanh</div>
 
-                <h1 class="auth-title"><?php echo $step === 'otp' ? 'Nhập mã OTP để<br>xác thực số điện thoại' : 'Nhập số điện thoại để<br>đăng ký và tiếp tục'; ?></h1>
+                <h1 class="auth-title"><?php echo $step === 'otp' ? 'Nhập mã OTP để<br>xác thực email' : 'Nhập email để<br>đăng ký và tiếp tục'; ?></h1>
 
                 <?php if ($error): ?>
                     <div class="alert alert-danger py-2" style="border-radius: 10px; font-size: 0.9rem; font-weight: 600;"><?php echo htmlspecialchars($error); ?></div>
                 <?php endif; ?>
-                <?php if ($success): ?>
+                <?php if ($success && $step !== 'otp'): ?>
                     <div class="alert alert-success py-2" style="border-radius: 10px; font-size: 0.9rem; font-weight: 600;"><?php echo htmlspecialchars($success); ?></div>
                 <?php endif; ?>
 
                 <?php if ($step === 'otp'): ?>
-                    <form method="POST" action="">
+                    <div class="otp-instruction">
+                        Mở email <span class="otp-email"><?php echo htmlspecialchars($email); ?></span><br>
+                        để lấy mã xác thực OTP
+                    </div>
+                    <form method="POST" action="" id="otpForm">
                         <input type="hidden" name="action" value="verify_otp">
-                        <input type="hidden" name="phone" value="<?php echo htmlspecialchars($phone); ?>">
-                        <input type="tel" name="otp" id="otpInput" class="form-control otp-input mb-3" placeholder="______" maxlength="6" inputmode="numeric" required autofocus autocomplete="off">
-                        <button type="submit" id="submitBtn" class="continue-btn">Xác thực OTP</button>
-                    </form>
-                    <form method="POST" action="" class="text-center">
-                        <input type="hidden" name="action" value="resend_otp">
-                        <input type="hidden" name="phone" value="<?php echo htmlspecialchars($phone); ?>">
-                        <button type="submit" class="resend-btn">Gửi lại mã OTP</button>
+                        <input type="hidden" name="email" value="<?php echo htmlspecialchars($email); ?>">
+                        <input type="hidden" name="otp" id="otpInput" value="">
+                        <div class="otp-grid">
+                            <input type="text" class="otp-box" maxlength="1" inputmode="numeric" autocomplete="one-time-code" autofocus>
+                            <input type="text" class="otp-box" maxlength="1" inputmode="numeric">
+                            <input type="text" class="otp-box" maxlength="1" inputmode="numeric">
+                            <input type="text" class="otp-box" maxlength="1" inputmode="numeric">
+                            <input type="text" class="otp-box" maxlength="1" inputmode="numeric">
+                            <input type="text" class="otp-box" maxlength="1" inputmode="numeric">
+                        </div>
+                        <div class="otp-timer" id="otpTimer">05:00</div>
                     </form>
                 <?php else: ?>
                     <form method="POST" action="">
                         <input type="hidden" name="action" value="send_otp">
                         <div class="phone-row">
-                            <div class="country-code"><img src="https://flagcdn.com/w20/vn.png" class="flag-vn" alt="VN"> +84</div>
                             <div class="phone-input-wrap">
-                                <input type="tel" name="phone" id="phoneInput" class="form-control phone-input" placeholder="Nhập số điện thoại" value="<?php echo htmlspecialchars($phone); ?>" required autofocus autocomplete="off">
-                                <button type="button" id="clearPhone" class="clear-phone">×</button>
+                                <input type="email" name="email" id="emailInput" class="form-control phone-input" placeholder="Nhập email" value="<?php echo htmlspecialchars($email); ?>" required autofocus autocomplete="off">
+                                <button type="button" id="clearEmail" class="clear-phone">×</button>
                             </div>
                         </div>
-                        <div id="phoneError" class="phone-error">Số điện thoại phải có 10 chữ số.</div>
+                        <div id="emailError" class="phone-error" style="padding-left: 0; margin-top: -15px;">Email không hợp lệ.</div>
                         <button type="submit" id="submitBtn" class="continue-btn mt-3">Tiếp tục</button>
                     </form>
                 <?php endif; ?>
 
-                <div class="login-link">Đã có tài khoản? <a href="login.php">Đăng nhập bằng email</a></div>
-                <div class="login-link mt-2"><a href="register_hospital.php" style="color: #023f6d;">Đăng ký tài khoản cơ sở y tế đối tác</a></div>
+                <?php if ($step !== 'otp'): ?>
+                    <div class="login-link">Đã có tài khoản? <a href="login.php">Đăng nhập bằng email</a></div>
+                    <div class="login-link mt-2"><a href="register_hospital.php" style="color: #023f6d;">Đăng ký tài khoản cơ sở y tế đối tác</a></div>
+                <?php endif; ?>
             </div>
         </section>
 
@@ -472,25 +511,27 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </main>
 
     <script>
-        const phoneInput = document.getElementById('phoneInput');
-        const phoneError = document.getElementById('phoneError');
-        const clearPhone = document.getElementById('clearPhone');
+        const emailInput = document.getElementById('emailInput');
+        const emailError = document.getElementById('emailError');
+        const clearEmail = document.getElementById('clearEmail');
         const submitBtn = document.getElementById('submitBtn');
 
-        function updatePhoneState() {
-            if (!phoneInput) {
-                submitBtn.classList.add('active');
+        function updateEmailState() {
+            if (!emailInput) {
+                if (submitBtn) {
+                    submitBtn.classList.add('active');
+                }
                 return;
             }
 
-            const val = phoneInput.value;
-            const isValidLength = val.length === 10;
+            const val = emailInput.value.trim();
+            const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
             const hasStarted = val.length > 0;
             
-            phoneError.classList.toggle('show', hasStarted && !isValidLength);
-            clearPhone.classList.toggle('show', hasStarted);
+            emailError.classList.toggle('show', hasStarted && !isValidEmail);
+            clearEmail.classList.toggle('show', hasStarted);
             
-            if (isValidLength) {
+            if (isValidEmail) {
                 submitBtn.classList.add('active');
                 submitBtn.removeAttribute('disabled');
             } else {
@@ -499,27 +540,82 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             }
         }
 
-        if (phoneInput) {
-            phoneInput.addEventListener('input', function () {
-                this.value = this.value.replace(/\D/g, '').slice(0, 10);
-                updatePhoneState();
-            });
+        if (emailInput) {
+            emailInput.addEventListener('input', updateEmailState);
 
-            clearPhone.addEventListener('click', function () {
-                phoneInput.value = '';
-                updatePhoneState();
-                phoneInput.focus();
+            clearEmail.addEventListener('click', function () {
+                emailInput.value = '';
+                updateEmailState();
+                emailInput.focus();
             });
         }
 
         const otpInput = document.getElementById('otpInput');
-        if (otpInput) {
-            otpInput.addEventListener('input', function () {
-                this.value = this.value.replace(/\D/g, '').slice(0, 6);
+        const otpBoxes = Array.from(document.querySelectorAll('.otp-box'));
+        const otpForm = document.getElementById('otpForm');
+
+        function syncOtpValue() {
+            if (otpInput) {
+                otpInput.value = otpBoxes.map((box) => box.value).join('');
+                if (/^\d{6}$/.test(otpInput.value) && otpForm) {
+                    otpForm.submit();
+                }
+            }
+        }
+
+        otpBoxes.forEach((box, index) => {
+            box.addEventListener('input', function () {
+                this.value = this.value.replace(/\D/g, '').slice(0, 1);
+                if (this.value && otpBoxes[index + 1]) {
+                    otpBoxes[index + 1].focus();
+                }
+                syncOtpValue();
+            });
+
+            box.addEventListener('keydown', function (event) {
+                if (event.key === 'Backspace' && !this.value && otpBoxes[index - 1]) {
+                    otpBoxes[index - 1].focus();
+                }
+            });
+
+            box.addEventListener('paste', function (event) {
+                event.preventDefault();
+                const pasted = (event.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '').slice(0, 6);
+                pasted.split('').forEach((digit, pasteIndex) => {
+                    if (otpBoxes[pasteIndex]) {
+                        otpBoxes[pasteIndex].value = digit;
+                    }
+                });
+                syncOtpValue();
+                const nextIndex = Math.min(pasted.length, otpBoxes.length) - 1;
+                if (otpBoxes[nextIndex]) {
+                    otpBoxes[nextIndex].focus();
+                }
+            });
+        });
+
+        if (otpForm) {
+            otpForm.addEventListener('submit', function (event) {
+                syncOtpValue();
+                if (!/^\d{6}$/.test(otpInput.value)) {
+                    event.preventDefault();
+                    otpBoxes.find((box) => !box.value)?.focus();
+                }
             });
         }
 
-        updatePhoneState();
+        const otpTimer = document.getElementById('otpTimer');
+        if (otpTimer) {
+            let seconds = 300;
+            setInterval(function () {
+                seconds = Math.max(0, seconds - 1);
+                const minutes = String(Math.floor(seconds / 60)).padStart(2, '0');
+                const remainSeconds = String(seconds % 60).padStart(2, '0');
+                otpTimer.textContent = `${minutes}:${remainSeconds}`;
+            }, 1000);
+        }
+
+        updateEmailState();
     </script>
 </body>
 </html>

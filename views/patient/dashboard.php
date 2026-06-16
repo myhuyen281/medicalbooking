@@ -110,7 +110,8 @@ $appointments = $db->resultSet();
             <div class="text-center py-4 border-bottom border-secondary mb-3">
                 <h4 class="m-0"><i class="bi bi-heart-pulse-fill text-danger me-2"></i>Medical Patient</h4>
             </div>
-            <a href="<?php echo $base_url; ?>/views/patient/dashboard.php" class="active"><i class="bi bi-person-lines-fill me-2"></i> Hồ sơ & Lịch khám</a>
+            <a href="<?php echo $base_url; ?>/views/patient/dashboard.php" class="active"><i class="bi bi-person-lines-fill me-2"></i> Lịch khám</a>
+            <a href="<?php echo $base_url; ?>/views/patient/profile.php"><i class="bi bi-file-medical me-2"></i> Hồ sơ bệnh nhân</a>
             <a href="<?php echo $base_url; ?>/doctors.php"><i class="bi bi-search me-2"></i> Đặt lịch hẹn mới</a>
             <hr class="text-white mx-3 border-secondary">
             <a href="<?php echo $base_url; ?>/views/auth/logout.php" class="text-danger mt-5"><i class="bi bi-box-arrow-right me-2"></i> Đăng xuất</a>

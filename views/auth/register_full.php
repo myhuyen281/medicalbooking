@@ -8,24 +8,24 @@ if (session_status() === PHP_SESSION_NONE) {
 
 $base_url = 'http://' . $_SERVER['HTTP_HOST'] . '/MEDICAILBOOKING';
 $error = '';
-$phone = normalizeVietnamPhone($_GET['phone'] ?? $_POST['phone'] ?? '');
-$verifiedPhone = $_SESSION['registration_verified_phone'] ?? '';
+$email = trim($_GET['email'] ?? $_POST['email'] ?? '');
+$verifiedEmail = $_SESSION['registration_verified_email'] ?? '';
 
-if (!$phone || $verifiedPhone !== $phone) {
+if (!$email || $verifiedEmail !== $email) {
     header("Location: register.php");
     exit();
 }
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $fullName = trim($_POST['full_name'] ?? '');
-    $email = trim($_POST['email'] ?? '');
+    $phone = normalizeVietnamPhone($_POST['phone'] ?? '');
     $password = $_POST['password'] ?? '';
     $confirmPassword = $_POST['confirm_password'] ?? '';
 
-    if (empty($fullName) || empty($email) || empty($password) || empty($confirmPassword)) {
+    if (empty($fullName) || empty($phone) || empty($password) || empty($confirmPassword)) {
         $error = "Vui lòng nhập đầy đủ thông tin.";
-    } elseif (!isValidEmail($email)) {
-        $error = "Email không hợp lệ.";
+    } elseif (!isValidVietnamMobile($phone)) {
+        $error = "Số điện thoại không hợp lệ.";
     } elseif (strlen($password) < 6) {
         $error = "Mật khẩu phải có ít nhất 6 ký tự.";
     } elseif ($password !== $confirmPassword) {
@@ -50,7 +50,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
             $userId = $db->lastInsertId();
             clearRegistrationOtp();
-            unset($_SESSION['registration_verified_phone']);
+            unset($_SESSION['registration_verified_email']);
 
             $_SESSION['user_id'] = $userId;
             $_SESSION['full_name'] = $fullName;
@@ -127,21 +127,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <div class="register-card">
         <div class="brand">Medi<span>cailBooking</span></div>
         <h1 class="h4 fw-bold text-center mt-3 mb-2">Hoàn tất đăng ký</h1>
-        <p class="text-muted text-center mb-4">Số điện thoại đã xác thực: <strong><?php echo htmlspecialchars($phone); ?></strong></p>
+        <p class="text-muted text-center mb-4">Email đã xác thực: <strong><?php echo htmlspecialchars($email); ?></strong></p>
 
         <?php if ($error): ?>
             <div class="alert alert-danger py-2 fw-semibold"><?php echo htmlspecialchars($error); ?></div>
         <?php endif; ?>
 
         <form method="POST" action="">
-            <input type="hidden" name="phone" value="<?php echo htmlspecialchars($phone); ?>">
+            <input type="hidden" name="email" value="<?php echo htmlspecialchars($email); ?>">
             <div class="mb-3">
                 <label class="form-label fw-bold">Họ và tên</label>
                 <input type="text" name="full_name" class="form-control" required value="<?php echo htmlspecialchars($_POST['full_name'] ?? ''); ?>">
             </div>
             <div class="mb-3">
-                <label class="form-label fw-bold">Email</label>
-                <input type="email" name="email" class="form-control" required value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>">
+                <label class="form-label fw-bold">Số điện thoại</label>
+                <input type="tel" name="phone" class="form-control" required value="<?php echo htmlspecialchars($_POST['phone'] ?? ''); ?>">
             </div>
             <div class="mb-3">
                 <label class="form-label fw-bold">Mật khẩu</label>
