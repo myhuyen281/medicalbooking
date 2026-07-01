@@ -8,24 +8,60 @@ $db = new Database();
 if (isset($_GET['action']) && isset($_GET['id'])) {
     $apptId = $_GET['id'];
     $scopeSql = $isHospitalAdmin ? " AND EXISTS (SELECT 1 FROM doctors d WHERE d.id = appointments.doctor_id AND d.hospital_id = :hospital_id)" : "";
-    if ($_GET['action'] === 'cancel') {
-        $db->query("UPDATE appointments SET status = 'cancelled' WHERE id = :id" . $scopeSql);
-        $db->bind(':id', $apptId);
-        if ($isHospitalAdmin) {
-            $db->bind(':hospital_id', $currentHospitalId);
-        }
-        $db->execute();
-        
-        // Giải phóng lịch
-        $db->query("UPDATE schedules s 
-                    INNER JOIN appointments a ON s.id = a.schedule_id 
-                    SET s.status = 'available' 
-                    WHERE a.id = :aid");
-        $db->bind(':aid', $apptId);
-        $db->execute();
+ if ($_GET['action'] === 'cancel') {
+ $db->query("UPDATE appointments SET status = 'cancelled' WHERE id = :id" . $scopeSql);
+ $db->bind(':id', $apptId);
+ if ($isHospitalAdmin) {
+ $db->bind(':hospital_id', $currentHospitalId);
+ }
+ $db->execute();
+ 
+ // Giải phóng lịch
+ $db->query("UPDATE schedules s 
+ INNER JOIN appointments a ON s.id = a.schedule_id 
+ SET s.status = 'available' 
+ WHERE a.id = :aid");
+ $db->bind(':aid', $apptId);
+ $db->execute();
 
-        $msg = "Đã hủy đơn khám số #" . $apptId;
-    } elseif ($_GET['action'] === 'delete' && $isSystemAdmin) {
+ $msg = "Đã hủy đơn khám số #" . $apptId;
+ } elseif ($_GET['action'] === 'confirm') {
+ $db->query("UPDATE appointments SET status = 'confirmed' WHERE id = :id" . $scopeSql);
+ $db->bind(':id', $apptId);
+ if ($isHospitalAdmin) {
+ $db->bind(':hospital_id', $currentHospitalId);
+ }
+ $db->execute();
+ $msg = "Đã duyệt đơn khám số #" . $apptId;
+ } elseif ($_GET['action'] === 'request_cancel') {
+  $db->query("UPDATE appointments SET status = 'cancel_pending' WHERE id = :id" . $scopeSql);
+  $db->bind(':id', $apptId);
+  if ($isHospitalAdmin) {
+  $db->bind(':hospital_id', $currentHospitalId);
+  }
+  $db->execute();
+  $msg = "Đã chuyển đơn #" . $apptId . " sang trạng thái chờ hủy/hoàn tiền";
+  } elseif ($_GET['action'] === 'complete') {
+  $db->query("UPDATE appointments SET status = 'completed' WHERE id = :id" . $scopeSql);
+ $db->bind(':id', $apptId);
+ if ($isHospitalAdmin) {
+ $db->bind(':hospital_id', $currentHospitalId);
+ }
+ $db->execute();
+  $msg = "Đã đánh dấu hoàn thành đơn #" . $apptId;
+  } elseif ($_GET['action'] === 'approve_cancel') {
+  $db->query("UPDATE appointments SET status = 'cancelled' WHERE id = :id" . $scopeSql);
+  $db->bind(':id', $apptId);
+  if ($isHospitalAdmin) {
+  $db->bind(':hospital_id', $currentHospitalId);
+  }
+  $db->execute();
+  // Giải phóng lịch
+  $db->query("UPDATE schedules s INNER JOIN appointments a ON s.id = a.schedule_id SET s.status = 'available' WHERE a.id = :aid");
+  $db->bind(':aid', $apptId);
+  $db->execute();
+  $msg = "Đã xác nhận hủy & hoàn tiền đơn #" . $apptId;
+  } elseif ($_GET['action'] === 'delete' && $isSystemAdmin) {
         $db->query("DELETE FROM appointments WHERE id = :id");
         $db->bind(':id', $apptId);
         $db->execute();
@@ -48,13 +84,13 @@ $query = "SELECT a.id, a.status, a.symptoms, a.created_at,
                  u_doc.full_name as doctor_name, spec.name as specialty_name, h.name as hospital_name,
                   s.work_date, s.start_time, s.end_time,
                  d.consultation_fee
-          FROM appointments a
-          INNER JOIN users u_pat ON a.patient_id = u_pat.id
-          INNER JOIN doctors d ON a.doctor_id = d.id
-          LEFT JOIN users u_doc ON d.user_id = u_doc.id
-          INNER JOIN specialties spec ON d.specialty_id = spec.id
-          LEFT JOIN hospitals h ON d.hospital_id = h.id
-          INNER JOIN schedules s ON a.schedule_id = s.id
+ FROM appointments a
+ INNER JOIN users u_pat ON a.patient_id = u_pat.id
+ INNER JOIN doctors d ON a.doctor_id = d.id
+ LEFT JOIN users u_doc ON d.user_id = u_doc.id
+ LEFT JOIN specialties spec ON d.specialty_id = spec.id
+ LEFT JOIN hospitals h ON d.hospital_id = h.id
+ INNER JOIN schedules s ON a.schedule_id = s.id
           $whereClause
           ORDER BY a.created_at DESC";
 
@@ -88,6 +124,7 @@ $appointments = $db->resultSet();
                 <option value="pending" <?php echo $filter_status == 'pending' ? 'selected' : ''; ?>>Chờ xác nhận</option>
                 <option value="confirmed" <?php echo $filter_status == 'confirmed' ? 'selected' : ''; ?>>Đã xác nhận</option>
                 <option value="completed" <?php echo $filter_status == 'completed' ? 'selected' : ''; ?>>Đã hoàn thành</option>
+                <option value="cancel_pending" <?php echo $filter_status == 'cancel_pending' ? 'selected' : ''; ?>>Chờ hủy/hoàn tiền</option>
                 <option value="cancelled" <?php echo $filter_status == 'cancelled' ? 'selected' : ''; ?>>Đã hủy</option>
             </select>
         </form>
@@ -123,8 +160,8 @@ $appointments = $db->resultSet();
                                     <small><?php echo htmlspecialchars($appt['patient_phone']); ?></small>
                                 </td>
                                 <td>
-                                    <div class="text-primary fw-bold">BS. <?php echo htmlspecialchars($appt['doctor_name']); ?></div>
-                                    <small class="text-muted"><?php echo htmlspecialchars($appt['specialty_name']); ?></small>
+                                    <div class="text-primary fw-bold"><?php echo htmlspecialchars(!empty($appt['doctor_name']) ? 'BS. ' . $appt['doctor_name'] : ($appt['hospital_name'] ?? 'Cơ sở y tế')); ?></div>
+                                    <small class="text-muted"><?php echo htmlspecialchars($appt['specialty_name'] ?? 'Dịch vụ khám'); ?></small>
                                 </td>
                                 <td class="fw-bold text-danger">
                                     <?php echo number_format($appt['consultation_fee'], 0, ',', '.'); ?>₫
@@ -134,18 +171,34 @@ $appointments = $db->resultSet();
                                         if($appt['status'] == 'pending') echo '<span class="badge bg-warning text-dark">Chờ duyệt</span>';
                                         elseif($appt['status'] == 'confirmed') echo '<span class="badge bg-success">Đã duyệt</span>';
                                         elseif($appt['status'] == 'completed') echo '<span class="badge bg-info text-dark">Hoàn thành</span>';
-                                        elseif($appt['status'] == 'cancelled') echo '<span class="badge bg-danger">Đã hủy</span>';
+                                         elseif($appt['status'] == 'cancel_pending') echo '<span class="badge bg-warning text-dark">Chờ hủy/hoàn tiền</span>';
+                                         elseif($appt['status'] == 'cancelled') echo '<span class="badge bg-danger">Đã hủy</span>';
                                     ?>
                                     <br><small class="text-muted" style="font-size: 10px;">Đặt lúc: <?php echo date('d/m H:i', strtotime($appt['created_at'])); ?></small>
                                 </td>
                                 <td class="text-center pe-3">
                                     <!-- Options for Admin: For admin we just allow force cancel and delete, not confirm -->
                                     <div class="btn-group">
-                                        <?php if($appt['status'] == 'pending' || $appt['status'] == 'confirmed'): ?>
-                                            <a href="?action=cancel&id=<?php echo $appt['id']; ?>" class="btn btn-sm btn-outline-warning" onclick="return confirm('Bạn có chắc muốn hủy đơn này?');" title="Hủy">
-                                                <i class="bi bi-x-circle"></i>
-                                            </a>
-                                        <?php endif; ?>
+ <?php if($appt['status'] == 'pending'): ?>
+ <a href="?action=confirm&id=<?php echo $appt['id']; ?>" class="btn btn-sm btn-outline-success" onclick="return confirm('Duyệt đơn khám này?');" title="Duyệt">
+ <i class="bi bi-check-circle"></i>
+ </a>
+ <?php endif; ?>
+  <?php if($appt['status'] == 'confirmed'): ?>
+  <a href="?action=complete&id=<?php echo $appt['id']; ?>" class="btn btn-sm btn-outline-info" onclick="return confirm('Đánh dấu đã khám xong?');" title="Hoàn thành">
+  <i class="bi bi-clipboard-check"></i>
+  </a>
+  <?php endif; ?>
+  <?php if($appt['status'] == 'cancel_pending'): ?>
+  <a href="?action=approve_cancel&id=<?php echo $appt['id']; ?>" class="btn btn-sm btn-outline-danger" onclick="return confirm('Xác nhận hủy đơn và hoàn tiền cho bệnh nhân?');" title="Xác nhận hủy & hoàn tiền">
+  <i class="bi bi-cash-coin"></i>
+  </a>
+  <?php endif; ?>
+ <?php if($appt['status'] == 'pending' || $appt['status'] == 'confirmed'): ?>
+ <a href="?action=cancel&id=<?php echo $appt['id']; ?>" class="btn btn-sm btn-outline-warning" onclick="return confirm('Bạn có chắc muốn hủy đơn này?');" title="Hủy">
+ <i class="bi bi-x-circle"></i>
+ </a>
+ <?php endif; ?>
                                         <?php if ($isSystemAdmin): ?>
                                             <a href="?action=delete&id=<?php echo $appt['id']; ?>" class="btn btn-sm btn-outline-danger" onclick="return confirm('Cảnh báo: Hành động này sẽ xóa vĩnh viễn đơn khám khỏi DB. Bạn chắc chắn chứ?');" title="Xóa">
                                                 <i class="bi bi-trash"></i>

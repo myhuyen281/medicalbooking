@@ -64,82 +64,46 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 $db->query("SELECT full_name, email, phone FROM users WHERE id = :id");
 $db->bind(':id', $userId);
 $user = $db->single();
-?>
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tạo hồ sơ bệnh nhân | Medpro</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <style>
-        body { background-color: #f8f9fa; }
-        .top-bar { background: #fff; border-bottom: 1px solid #e9ecef; padding: 8px 0; font-size: 13px; }
-        .main-nav { background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .main-nav .navbar-brand { font-weight: bold; font-size: 28px; color: #00a8e8; }
-        .breadcrumb { background: transparent; padding: 15px 0; }
-        .sidebar-menu { background: #fff; border-radius: 12px; padding: 20px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-        .sidebar-menu a { display: block; padding: 12px 24px; color: #495057; text-decoration: none; font-weight: 500; }
-        .sidebar-menu a:hover, .sidebar-menu a.active { background: #e7f5ff; color: #00a8e8; border-left: 3px solid #00a8e8; }
-        .main-content { background: #fff; border-radius: 12px; padding: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-        .form-section { margin-bottom: 30px; }
-        .form-section h6 { color: #00a8e8; font-weight: bold; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #f1f3f5; }
-        .form-label { font-weight: 600; font-size: 13px; color: #495057; }
-        .form-control, .form-select { border-radius: 8px; padding: 10px 14px; font-size: 14px; }
-        .btn-submit { background: linear-gradient(135deg, #00d4ff 0%, #00a8e8 100%); border: none; border-radius: 8px; padding: 14px 40px; font-weight: 600; }
-    </style>
-</head>
-<body>
-    <!-- Top Bar -->
-    <div class="top-bar">
-        <div class="container d-flex justify-content-between align-items-center">
-            <div class="social-icons">
-                <a href="#"><i class="bi bi-tiktok"></i></a>
-                <a href="#"><i class="bi bi-facebook"></i></a>
-                <a href="#"><i class="bi bi-chat-dots"></i> Zalo</a>
-                <a href="#"><i class="bi bi-youtube"></i></a>
-            </div>
-            <div>
-                <a href="#" class="btn btn-sm btn-warning rounded-pill px-3 py-1 me-2">Tải ứng dụng</a>
-                <a href="#" class="text-dark"><i class="bi bi-telephone"></i> +84939837176</a>
-                <span class="ms-2">🇻🇳</span>
-            </div>
-        </div>
-    </div>
 
-    <!-- Main Navigation -->
-    <nav class="navbar navbar-expand-lg main-nav">
-        <div class="container">
-            <a class="navbar-brand" href="<?php echo $base_url; ?>/index.php">medpro</a>
-        </div>
+include '../../includes/header.php';
+?>
+<style>
+    .patient-layout { max-width: 1200px; margin: 0 auto; }
+    .patient-breadcrumb { font-size: 0.9rem; font-weight: 600; padding: 16px 0; }
+    .patient-breadcrumb a { color: #023f6d; text-decoration: none; }
+    .patient-breadcrumb .active { color: #00a8e8; }
+    .sidebar-menu { background: #fff; border: 1px solid #eef2f7; border-radius: 14px; padding: 18px 14px; box-shadow: 0 2px 10px rgba(2,63,109,0.05); }
+    .sidebar-menu a { display: block; padding: 12px 16px; color: #023f6d; text-decoration: none; font-weight: 600; border-radius: 10px; margin-bottom: 6px; }
+    .sidebar-menu a:hover, .sidebar-menu a.active { background: #e7f8ff; color: #00a8e8; }
+    .main-content { background: #fff; border: 1px solid #eef2f7; border-radius: 14px; padding: 26px; box-shadow: 0 2px 10px rgba(2,63,109,0.05); }
+    .form-section { margin-bottom: 30px; }
+    .form-section h6 { color: #00a8e8; font-weight: bold; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #f1f3f5; }
+    .form-label { font-weight: 600; font-size: 13px; color: #495057; }
+    .form-control, .form-select { border-radius: 8px; padding: 10px 14px; font-size: 14px; }
+    .btn-submit { background: linear-gradient(135deg, #00d4ff 0%, #00a8e8 100%); border: none; border-radius: 8px; padding: 14px 40px; font-weight: 600; }
+</style>
+
+<div class="patient-layout">
+    <nav class="patient-breadcrumb">
+        <a href="<?php echo $base_url; ?>/index.php">Trang chủ</a>
+        <span class="text-muted">/</span>
+        <a href="<?php echo $base_url; ?>/views/patient/records.php">Hồ sơ bệnh nhân</a>
+        <span class="text-muted">/</span>
+        <span class="active">Thêm hồ sơ mới</span>
     </nav>
 
-    <!-- Breadcrumb -->
-    <div class="container">
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href="<?php echo $base_url; ?>/index.php">Trang chủ</a></li>
-                <li class="breadcrumb-item"><a href="<?php echo $base_url; ?>/views/patient/records.php">Hồ sơ bệnh nhân</a></li>
-                <li class="breadcrumb-item active">Thêm hồ sơ mới</li>
-            </ol>
-        </nav>
-    </div>
-
-    <!-- Main Content -->
-    <div class="container pb-5">
-        <div class="row">
-            <div class="col-md-3">
-                <div class="sidebar-menu">
-                    <a href="#" class="active"><i class="bi bi-file-medical me-2"></i> Hồ sơ bệnh nhân</a>
-                    <a href="#"><i class="bi bi-file-earmark-text me-2"></i> Phiếu khám bệnh</a>
-                    <a href="#"><i class="bi bi-bell me-2"></i> Thông báo <span class="badge bg-danger ms-1">99+</span></a>
-                </div>
+    <div class="row pb-5">
+        <div class="col-md-3 mb-3 mb-md-0">
+            <div class="sidebar-menu">
+                <a href="<?php echo $base_url; ?>/views/patient/profile_create.php" class="active"><i class="bi bi-file-medical me-2"></i> Hồ sơ bệnh nhân</a>
+                <a href="<?php echo $base_url; ?>/views/patient/bills.php"><i class="bi bi-file-earmark-text me-2"></i> Phiếu khám bệnh</a>
+                <a href="<?php echo $base_url; ?>/views/patient/notifications.php"><i class="bi bi-bell me-2"></i> Thông báo <span class="badge bg-danger ms-1">99+</span></a>
             </div>
+        </div>
 
-            <div class="col-md-9">
-                <div class="main-content">
-                    <h5 class="fw-bold mb-4">Tạo hồ sơ bệnh nhân mới</h5>
+        <div class="col-md-9">
+            <div class="main-content">
+                <h5 class="fw-bold mb-4" style="color:#023f6d;">Tạo hồ sơ bệnh nhân mới</h5>
 
                     <form method="POST" action="">
                         <!-- Thông tin cơ bản -->
@@ -148,11 +112,11 @@ $user = $db->single();
                             <div class="row g-3">
                                 <div class="col-md-6">
                                     <label class="form-label">Họ và tên</label>
-                                    <input type="text" class="form-control" value="<?php echo htmlspecialchars($user['full_name']); ?>" disabled>
+                                    <input type="text" class="form-control" value="<?php echo htmlspecialchars($user['full_name'] ?? ''); ?>" disabled>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Email</label>
-                                    <input type="email" class="form-control" value="<?php echo htmlspecialchars($user['email']); ?>" disabled>
+                                    <input type="email" class="form-control" value="<?php echo htmlspecialchars($user['email'] ?? ''); ?>" disabled>
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">Ngày sinh</label>
@@ -169,7 +133,7 @@ $user = $db->single();
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">Số điện thoại</label>
-                                    <input type="tel" class="form-control" value="<?php echo htmlspecialchars($user['phone']); ?>" disabled>
+                                    <input type="tel" class="form-control" value="<?php echo htmlspecialchars($user['phone'] ?? ''); ?>" disabled>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">CMND/CCCD</label>
@@ -302,7 +266,6 @@ $user = $db->single();
             </div>
         </div>
     </div>
+</div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+<?php include '../../includes/footer.php'; ?>

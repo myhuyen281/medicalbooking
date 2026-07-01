@@ -53,14 +53,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($schedule) && $schedule['statu
         $db->dbh->beginTransaction();
 
         // Thêm bản ghi vào Appointments (Lịch hẹn)
-        $db->query("INSERT INTO appointments (patient_id, doctor_id, schedule_id, appointment_date, symptoms, status) 
-                    VALUES (:pid, :did, :sid, :adate, :symptoms, 'pending')");
-        $db->bind(':pid', $patientId);
-        $db->bind(':did', $schedule['doctor_id']);
-        $db->bind(':sid', $scheduleId);
-        $db->bind(':adate', $schedule['work_date']);
-        $db->bind(':symptoms', $symptoms);
-        $db->execute();
+ $db->query("INSERT INTO appointments (patient_id, doctor_id, schedule_id, symptoms, status) 
+ VALUES (:pid, :did, :sid, :symptoms, 'pending')");
+ $db->bind(':pid', $patientId);
+ $db->bind(':did', $schedule['doctor_id']);
+ $db->bind(':sid', $scheduleId);
+ $db->bind(':symptoms', $symptoms);
+ $db->execute();
 
         // Cập nhật thẻ trạng thái của Schedule từ 'available' -> 'booked'
         $db->query("UPDATE schedules SET status = 'booked' WHERE id = :sid");

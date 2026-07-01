@@ -1,164 +1,151 @@
 <?php
 require_once '../../config/database.php';
-$base_url = 'http://' . $_SERVER['HTTP_HOST'] . '/MEDICAILBOOKING';
 
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'patient') {
-    header("Location: $base_url/views/auth/login.php");
+if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'patient') {
+    header("Location: ../../views/auth/login.php");
     exit();
 }
 
 $db = new Database();
 $userId = $_SESSION['user_id'];
 
-// Fetch user info
 $db->query("SELECT full_name, email, phone FROM users WHERE id = :id");
 $db->bind(':id', $userId);
 $user = $db->single();
 
-// Fetch patient profile if exists
-$db->query("SELECT * FROM patient_profiles WHERE user_id = :uid");
-$db->bind(':uid', $userId);
-$profile = $db->single();
-?>
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hồ sơ bệnh nhân | Medpro - Đặt lịch</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <style>
-        body { background-color: #f8f9fa; }
-        .top-bar { background: #fff; border-bottom: 1px solid #e9ecef; padding: 8px 0; font-size: 13px; }
-        .top-bar a { color: #666; text-decoration: none; margin-right: 15px; }
-        .top-bar .social-icons i { margin-right: 12px; font-size: 16px; }
-        .main-nav { background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .main-nav .navbar-brand { font-weight: bold; font-size: 28px; color: #00a8e8; }
-        .search-bar { background: #f1f3f5; border-radius: 50px; padding: 8px 20px; border: none; width: 300px; }
-        .nav-menu a { color: #333; font-weight: 500; padding: 8px 16px; }
-        .nav-menu a:hover { color: #00a8e8; }
-        .breadcrumb { background: transparent; padding: 15px 0; font-size: 14px; }
-        .sidebar-menu { background: #fff; border-radius: 12px; padding: 20px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-        .sidebar-menu a { display: block; padding: 12px 24px; color: #495057; text-decoration: none; font-weight: 500; transition: 0.2s; }
-        .sidebar-menu a:hover, .sidebar-menu a.active { background: #e7f5ff; color: #00a8e8; border-left: 3px solid #00a8e8; }
-        .sidebar-menu .btn-add { background: linear-gradient(135deg, #00d4ff 0%, #00a8e8 100%); color: white; border: none; border-radius: 8px; padding: 12px 20px; font-weight: 600; width: 100%; margin: 15px 0; }
-        .main-content { background: #fff; border-radius: 12px; padding: 30px; min-height: 500px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-        .empty-state { text-align: center; padding: 60px 20px; }
-        .empty-state img { max-width: 280px; margin-bottom: 30px; }
-        .empty-state h5 { color: #495057; margin-bottom: 10px; }
-        .empty-state p { color: #6c757d; }
-    </style>
-</head>
-<body>
-    <!-- Top Bar -->
-    <div class="top-bar">
-        <div class="container d-flex justify-content-between align-items-center">
-            <div class="social-icons">
-                <a href="#"><i class="bi bi-tiktok"></i></a>
-                <a href="#"><i class="bi bi-facebook"></i></a>
-                <a href="#"><i class="bi bi-chat-dots"></i> Zalo</a>
-                <a href="#"><i class="bi bi-youtube"></i></a>
-            </div>
-            <div>
-                <a href="#" class="btn btn-sm btn-warning rounded-pill px-3 py-1 me-2" style="font-size:12px; font-weight:600;">Tải ứng dụng</a>
-                <a href="#" class="text-dark"><i class="bi bi-telephone"></i> +84939837176</a>
-                <span class="ms-2">🇻🇳</span>
-            </div>
-        </div>
-    </div>
+try {
+    $db->query("SELECT * FROM patient_profiles WHERE user_id = :uid");
+    $db->bind(':uid', $userId);
+    $profile = $db->single();
+} catch (Exception $e) {
+    $profile = null;
+}
 
-    <!-- Main Navigation -->
-    <nav class="navbar navbar-expand-lg main-nav">
-        <div class="container">
-            <a class="navbar-brand" href="<?php echo $base_url; ?>/index.php">medpro</a>
-            <div class="d-flex align-items-center">
-                <input type="text" class="search-bar me-4" placeholder="Tìm kiếm chuyên khoa">
-                <div class="nav-menu d-flex">
-                    <a href="#">Cơ sở y tế <i class="bi bi-chevron-down ms-1"></i></a>
-                    <a href="#">Dịch vụ y tế <i class="bi bi-chevron-down ms-1"></i></a>
-                    <a href="#">Khám sức khỏe doanh nghiệp</a>
-                    <a href="#">Tin tức</a>
-                    <a href="#">Hướng dẫn</a>
-                    <a href="#">Liên hệ hợp tác</a>
-                </div>
-            </div>
-        </div>
+$missingProfileFields = [];
+if (empty($profile['date_of_birth'])) {
+    $missingProfileFields[] = 'ngày sinh';
+}
+if (empty($profile['gender'])) {
+    $missingProfileFields[] = 'giới tính';
+}
+if (empty($profile['province'])) {
+    $missingProfileFields[] = 'tỉnh/thành';
+}
+if (empty($profile['district'])) {
+    $missingProfileFields[] = 'quận/huyện';
+}
+if (empty($profile['ward'])) {
+    $missingProfileFields[] = 'phường/xã';
+}
+if (empty($profile['address_detail'])) {
+    $missingProfileFields[] = 'số nhà/tên đường';
+}
+
+include '../../includes/header.php';
+?>
+
+<style>
+    .patient-layout { max-width: 1200px; margin: 0 auto; }
+    .patient-breadcrumb { font-size: 0.9rem; font-weight: 600; padding: 16px 0; }
+    .patient-breadcrumb a { color: #023f6d; text-decoration: none; }
+    .patient-breadcrumb .active { color: #00a8e8; }
+    .sidebar-menu { background: #fff; border: 1px solid #eef2f7; border-radius: 14px; padding: 18px 14px; box-shadow: 0 2px 10px rgba(2,63,109,0.05); }
+    .sidebar-menu a { display: block; padding: 12px 16px; color: #023f6d; text-decoration: none; font-weight: 600; border-radius: 10px; margin-bottom: 6px; }
+    .sidebar-menu a:hover, .sidebar-menu a.active { background: #e7f8ff; color: #00a8e8; }
+    .sidebar-menu .btn-add { background: linear-gradient(135deg, #16d5f7 0%, #05b7df 100%); color: #fff; border: none; border-radius: 10px; padding: 13px 16px; font-weight: 700; width: 100%; margin-bottom: 14px; }
+    .patient-card { background: #fff; border: 1px solid #eef2f7; border-radius: 14px; padding: 26px; min-height: 420px; box-shadow: 0 2px 10px rgba(2,63,109,0.05); }
+    .empty-state { text-align: center; padding: 50px 20px 30px; }
+    .empty-state img { max-width: 320px; margin-bottom: 18px; }
+    .empty-state h5 { color: #adb5bd; font-size: 1.1rem; line-height: 1.6; margin-bottom: 6px; }
+    .empty-state p { color: #adb5bd; font-weight: 700; margin-bottom: 20px; }
+    .record-row { border: 1px solid #eef2f7; border-radius: 12px; padding: 26px; box-shadow: 0 2px 12px rgba(2,63,109,0.05); }
+    .profile-line { display:flex; align-items:center; gap:12px; margin-bottom:13px; color:#023f6d; }
+    .profile-line i { color:#aeb8c2; width:18px; }
+    .profile-actions { background:#f8fafc; margin:22px -26px -26px; padding:18px 22px; text-align:right; }
+</style>
+
+<div class="patient-layout">
+    <nav class="patient-breadcrumb">
+        <a href="<?php echo $base_url; ?>/index.php">Trang chủ</a>
+        <span class="text-muted">/</span>
+        <span class="active">Hồ sơ bệnh nhân</span>
     </nav>
 
-    <!-- Breadcrumb -->
-    <div class="container">
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href="<?php echo $base_url; ?>/index.php">Trang chủ</a></li>
-                <li class="breadcrumb-item active">Hồ sơ bệnh nhân</li>
-            </ol>
-        </nav>
-    </div>
-
-    <!-- Main Content -->
-    <div class="container pb-5">
-        <div class="row">
-            <!-- Sidebar -->
-            <div class="col-md-3">
-                <div class="sidebar-menu">
-                    <a href="<?php echo $base_url; ?>/views/patient/profile_create.php" class="btn-add d-flex align-items-center justify-content-center">
-                        <i class="bi bi-plus-circle me-2"></i> Thêm hồ sơ
-                    </a>
-                    <a href="<?php echo $base_url; ?>/views/patient/records.php" class="active">
-                        <i class="bi bi-file-medical me-2"></i> Hồ sơ bệnh nhân
-                    </a>
-                    <a href="#">
-                        <i class="bi bi-file-earmark-text me-2"></i> Phiếu khám bệnh
-                    </a>
-                    <a href="#">
-                        <i class="bi bi-bell me-2"></i> Thông báo <span class="badge bg-danger ms-1">99+</span>
-                    </a>
-                </div>
+    <div class="row pb-5">
+        <div class="col-md-3 mb-3 mb-md-0">
+            <div class="sidebar-menu">
+                <a href="<?php echo $base_url; ?>/views/patient/profile_create.php" class="btn-add d-flex align-items-center justify-content-center">
+                    <i class="bi bi-plus-circle me-2"></i> Thêm hồ sơ
+                </a>
+                <a href="<?php echo $base_url; ?>/views/patient/records.php" class="active">
+                    <i class="bi bi-file-medical me-2"></i> Hồ sơ bệnh nhân
+                </a>
+                <a href="<?php echo $base_url; ?>/views/patient/bills.php"><i class="bi bi-file-earmark-text me-2"></i> Phiếu khám bệnh</a>
+                <a href="<?php echo $base_url; ?>/views/patient/notifications.php"><i class="bi bi-bell me-2"></i> Thông báo <span class="badge bg-danger ms-1">99+</span></a>
             </div>
+        </div>
 
-            <!-- Main Content Area -->
-            <div class="col-md-9">
-                <div class="main-content">
-                    <h5 class="fw-bold mb-4">Danh sách hồ sơ bệnh nhân</h5>
+        <div class="col-md-9">
+            <div class="patient-card">
+                <h5 class="fw-bold mb-4" style="color:#023f6d;">Danh sách hồ sơ bệnh nhân</h5>
 
-                    <?php if ($profile): ?>
-                        <!-- Has profile -->
-                        <div class="card border-0 shadow-sm mb-3">
-                            <div class="card-body d-flex align-items-center justify-content-between">
-                                <div class="d-flex align-items-center">
-                                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width:50px;height:50px;font-size:20px;font-weight:bold;">
-                                        <?php echo strtoupper(substr($user['full_name'], 0, 1)); ?>
-                                    </div>
-                                    <div>
-                                        <h6 class="mb-1 fw-bold"><?php echo htmlspecialchars($user['full_name']); ?></h6>
-                                        <small class="text-muted"><?php echo htmlspecialchars($user['phone']); ?> • <?php echo htmlspecialchars($user['email']); ?></small>
-                                    </div>
-                                </div>
-                                <div>
-                                    <a href="<?php echo $base_url; ?>/views/patient/profile.php" class="btn btn-outline-primary btn-sm me-2">Chỉnh sửa</a>
-                                    <a href="<?php echo $base_url; ?>/doctors.php" class="btn btn-primary btn-sm">Đặt khám</a>
-                                </div>
-                            </div>
-                        </div>
-                    <?php else: ?>
-                        <!-- Empty State -->
-                        <div class="empty-state">
-                            <img src="https://cdn-icons-png.flaticon.com/512/4076/4076549.png" alt="No records">
-                            <h5>Bạn chưa có hồ sơ bệnh nhân</h5>
-                            <p>Vui lòng tạo mới hồ sơ để được đặt khám.</p>
-                            <a href="<?php echo $base_url; ?>/views/patient/profile_create.php" class="btn btn-primary mt-3 px-4 py-2">
-                                <i class="bi bi-plus-circle me-2"></i>Tạo hồ sơ mới
-                            </a>
-                        </div>
-                    <?php endif; ?>
+                <div class="record-row">
+                    <div class="profile-line"><i class="bi bi-person-fill"></i><span>Họ và tên:</span> <strong class="text-uppercase" style="color:#d88920;" id="recordFullName"><?php echo htmlspecialchars($user['full_name'] ?? ''); ?></strong></div>
+                    <div class="profile-line"><i class="bi bi-calendar3"></i><span>Ngày sinh:</span> <strong id="recordDob"><?php echo htmlspecialchars($profile['date_of_birth'] ?? 'Chưa cập nhật'); ?></strong></div>
+                    <div class="profile-line"><i class="bi bi-telephone-fill"></i><span>Số điện thoại:</span> <strong id="recordPhone"><?php echo htmlspecialchars($user['phone'] ?? 'Chưa cập nhật'); ?></strong></div>
+                    <div class="profile-line"><i class="bi bi-gender-ambiguous"></i><span>Giới tính:</span> <strong id="recordGender"><?php echo htmlspecialchars($profile['gender'] ?? 'Chưa cập nhật'); ?></strong></div>
+                    <div class="profile-line"><i class="bi bi-people-fill"></i><span>Dân tộc:</span> <strong id="recordEthnicity"><?php echo htmlspecialchars($profile['ethnicity'] ?? 'Kinh'); ?></strong></div>
+                    <div class="profile-line"><i class="bi bi-geo-alt-fill"></i><span>Địa chỉ mới:</span> <strong id="recordAddress"><?php echo htmlspecialchars($profile['address'] ?? 'Chưa cập nhật'); ?></strong></div>
+                    <div class="profile-line"><i class="bi bi-geo-alt-fill"></i><span>Địa chỉ cũ:</span> <strong><?php echo htmlspecialchars($profile['old_address'] ?? ''); ?></strong></div>
+                    <div class="profile-actions">
+                        <a href="#" class="text-danger text-decoration-none fw-bold me-4"><i class="bi bi-trash me-1"></i>Xóa hồ sơ</a>
+                        <a href="#" class="text-warning text-decoration-none fw-bold me-4" data-bs-toggle="modal" data-bs-target="#updateProfileNoticeModal"><i class="bi bi-pencil-square me-1"></i>Bổ sung hồ sơ</a>
+                        <a href="<?php echo $base_url; ?>/views/patient/profile_view.php" class="text-dark text-decoration-none fw-bold"><i class="bi bi-info-circle me-1"></i>Chi tiết</a>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
+</div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+<div class="modal fade" id="updateProfileNoticeModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 rounded-2 overflow-hidden">
+            <div class="modal-header text-white border-0" style="background:#08bfe8;">
+                <h5 class="modal-title fw-bold">Thông báo cập nhật thông tin</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body px-4 py-4" style="color:#374151;">
+                <?php if (count($missingProfileFields) > 0): ?>
+                    <?php foreach ($missingProfileFields as $field): ?>
+                        <div>Vui lòng bổ sung thông tin <?php echo htmlspecialchars($field); ?>!</div>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <div>Hồ sơ của bạn đã được cập nhật đầy đủ.</div>
+                <?php endif; ?>
+            </div>
+            <div class="modal-footer border-top px-4 py-3">
+                <button type="button" class="btn btn-link text-dark text-decoration-none px-4" data-bs-dismiss="modal">Đóng</button>
+                <a href="<?php echo $base_url; ?>/views/patient/profile.php" class="btn text-white fw-bold px-4" style="background:#08bfe8;">Bổ sung hồ sơ</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const latestTicket = localStorage.getItem('latest_booking_ticket');
+if (latestTicket) {
+    try {
+        const ticket = JSON.parse(latestTicket);
+        if (ticket.patient_name) document.getElementById('recordFullName').textContent = ticket.patient_name;
+        if (ticket.patient_dob) document.getElementById('recordDob').textContent = ticket.patient_dob;
+        if (ticket.patient_phone) document.getElementById('recordPhone').textContent = ticket.patient_phone;
+    } catch (error) {}
+}
+</script>
+
+<?php include '../../includes/footer.php'; ?>

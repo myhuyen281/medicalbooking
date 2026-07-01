@@ -236,22 +236,80 @@ function homepageNewsDate($post) {
 }
 ?>
 
+<style>
+.hero-fullbleed {
+    width: 100vw;
+    margin-top: 0 !important;
+    margin-left: calc(50% - 50vw) !important;
+    margin-right: calc(50% - 50vw) !important;
+    padding-left: 0;
+    padding-right: 0;
+}
+.hero-fullbleed::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(circle at 18% 18%, rgba(255,255,255,0.7) 0 2px, transparent 3px),
+        radial-gradient(circle at 76% 16%, rgba(255,255,255,0.75) 0 2px, transparent 3px),
+        radial-gradient(circle at 82% 48%, rgba(255,255,255,0.5) 0 3px, transparent 4px);
+    background-size: 120px 120px, 150px 150px, 180px 180px;
+    z-index: 1;
+    pointer-events: none;
+}
+.hero-fullbleed::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 115px;
+    background:
+        radial-gradient(ellipse at left bottom, rgba(248,249,250,0.96) 0%, rgba(248,249,250,0.58) 34%, rgba(248,249,250,0) 68%),
+        radial-gradient(ellipse at right bottom, rgba(248,249,250,0.96) 0%, rgba(248,249,250,0.58) 34%, rgba(248,249,250,0) 68%),
+        linear-gradient(to bottom, rgba(248,249,250,0) 35%, rgba(248,249,250,0.86) 100%);
+    z-index: 1;
+    pointer-events: none;
+}
+.hero-fullbleed > * {
+    position: relative;
+}
+.hero-content-medpro {
+    max-width: 980px;
+    margin: 0 auto;
+}
+.hero-title-medpro {
+    font-size: clamp(2rem, 3.1vw, 3rem);
+    color: #023f6d;
+    letter-spacing: -0.8px;
+    text-shadow: 0 2px 8px rgba(2,63,109,0.08);
+}
+.hero-search-medpro {
+    max-width: 760px;
+    margin: 0 auto;
+}
+.hero-benefits-medpro {
+    max-width: 620px;
+}
+</style>
+
 <!-- Hero Section -->
-<div class="row align-items-center mb-5 position-relative overflow-hidden" style="min-height: 480px; background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); border-radius: 0 0 40px 40px;">
+<div class="row align-items-center mb-4 position-relative overflow-hidden hero-fullbleed" style="min-height: 360px; background: linear-gradient(180deg, #e3f2fd 0%, #d6eafb 70%, #f4f9ff 100%); border-radius: 0 0 28px 28px;">
     <!-- Background element styling -->
     <div class="position-absolute top-0 start-0 w-100 h-100" style="background-image: radial-gradient(rgba(0, 181, 241, 0.15) 1.5px, transparent 1.5px); background-size: 24px 24px; opacity: 0.8; z-index: 0;"></div>
     
     <!-- Banner Image Full -->
-    <img src="https://media.istockphoto.com/id/1359494953/vi/vec-to/c%C3%A1c-b%C3%A1c-s%C4%A9-t%C6%B0%C6%A1ng-t%C3%A1c-v%E1%BB%9Bi-giao-di%E1%BB%87n-k%E1%BB%B9-thu%E1%BA%ADt-s%E1%BB%91-v%C3%A0-ki%E1%BB%83m-tra-d%E1%BB%AF-li%E1%BB%87u-s%E1%BB%A9c-kh%E1%BB%8Fe.jpg?s=1024x1024&w=is&k=20&c=xmoUgLICa_IczGl1hwkDwnMIrJ-GqXJf9xSIV4GK9JA=" alt="Doctors Team" class="position-absolute top-0 start-0 w-100 h-100" style="object-fit: cover; object-position: center 20%; z-index: 0; mix-blend-mode: multiply; opacity: 0.35;">
+    <img src="https://media.istockphoto.com/id/1359494953/vi/vec-to/c%C3%A1c-b%C3%A1c-s%C4%A9-t%C6%B0%C6%A1ng-t%C3%A1c-v%E1%BB%9Bi-giao-di%E1%BB%87n-k%E1%BB%B9-thu%E1%BA%ADt-s%E1%BB%91-v%C3%A0-ki%E1%BB%83m-tra-d%E1%BB%AF-li%E1%BB%87u-s%E1%BB%A9c-kh%E1%BB%8Fe.jpg?s=1024x1024&w=is&k=20&c=xmoUgLICa_IczGl1hwkDwnMIrJ-GqXJf9xSIV4GK9JA=" alt="Doctors Team" class="position-absolute top-0 start-0 w-100 h-100" style="object-fit: cover; object-position: center 28%; z-index: 0; mix-blend-mode: multiply; opacity: 0.42;">
 
-    <div class="col-12 text-center position-relative pt-5 pb-5 px-3" style="z-index: 2;">
+    <div class="col-12 text-center position-relative pt-4 pb-5 px-3" style="z-index: 2;">
+ <div class="hero-content-medpro">
         <div class="mb-4">
-            <h1 class="fw-extrabold text-uppercase mb-2" style="font-size: 2.2rem; color: #023f6d; letter-spacing: -0.5px; font-weight: 800;">Đặt lịch khám bệnh online</h1>
-            <p class="fs-5 fw-medium text-secondary" style="color: #475569 !important;">Giải pháp chăm sóc sức khỏe toàn diện</p>
+<h1 class="fw-extrabold text-uppercase mb-3 hero-title-medpro" style="font-weight: 800;">Đặt lịch khám bệnh online</h1>
+ <p class="fs-5 fw-medium text-secondary" style="color: #475569 !important;">Giải pháp chăm sóc sức khỏe toàn diện</p>
         </div>
 
-        <div class="row justify-content-center mb-4 mt-2">
-            <div class="col-md-11 col-lg-7">
+<div class="row justify-content-center mb-3 mt-3">
+ <div class="col-md-12 hero-search-medpro">
                 <!-- Search Bar -->
                 <div class="position-relative">
                     <div class="input-group shadow rounded-pill bg-white p-2 border border-2 border-transparent" style="transition: all 0.3s ease; box-shadow: 0 10px 30px rgba(2, 63, 109, 0.12) !important;" onfocusin="this.style.borderColor='#00b5f1'; this.style.boxShadow='0 10px 30px rgba(0, 181, 241, 0.25)';" onfocusout="this.style.borderColor='transparent'; this.style.boxShadow='0 10px 30px rgba(2, 63, 109, 0.12)';">
@@ -264,25 +322,27 @@ function homepageNewsDate($post) {
         </div>
 
         <!-- Benefits details -->
-        <div class="d-flex flex-column align-items-center text-dark text-start mx-auto mt-4 px-3" style="max-width: 680px; font-size: 0.95rem; font-weight: 600; color: #023f6d !important;">
-            <div class="mb-2 d-flex align-items-center w-100 justify-content-center justify-content-lg-start">
-                <i class="bi bi-check-circle-fill text-success fs-5 me-2"></i>
-                <span class="text-truncate">Nền tảng đặt lịch khám tiện lợi – Chọn bác sĩ nhanh – Lấy số thứ tự trực tuyến</span>
-            </div>
-            <div class="mb-2 d-flex align-items-center w-100 justify-content-center justify-content-lg-start">
-                <i class="bi bi-check-circle-fill text-success fs-5 me-2"></i>
-                <span>Đặt khám theo khung giờ – Chủ động thời gian – Hạn chế chờ đợi tại bệnh viện</span>
-            </div>
-            <div class="mb-0 d-flex align-items-center w-100 justify-content-center justify-content-lg-start">
-                <i class="bi bi-check-circle-fill text-success fs-5 me-2"></i>
-                <span>Hỗ trợ hủy lịch hoàn phí – Nhận ưu đãi tái khám – Tư vấn sức khỏe từ xa</span>
-            </div>
-        </div>
-    </div>
+        <div class="d-flex flex-column align-items-start text-dark text-start mx-auto mt-3 px-3 hero-benefits-medpro" style="font-size: 0.95rem; font-weight: 600; color: #023f6d !important;">
+ <div class="mb-2 d-flex align-items-center w-100">
+ <i class="bi bi-check-circle-fill text-success fs-5 me-2"></i>
+ <span class="text-truncate">Nền tảng đặt lịch khám tiện lợi – Chọn bác sĩ nhanh – Lấy số thứ tự trực tuyến</span>
+ </div>
+ <div class="mb-2 d-flex align-items-center w-100">
+ <i class="bi bi-check-circle-fill text-success fs-5 me-2"></i>
+ <span>Đặt khám theo khung giờ – Chủ động thời gian – Hạn chế chờ đợi tại bệnh viện</span>
+ </div>
+ <div class="mb-0 d-flex align-items-center w-100">
+ <i class="bi bi-check-circle-fill text-success fs-5 me-2"></i>
+ <span>Hỗ trợ hủy lịch hoàn phí – Nhận ưu đãi tái khám – Tư vấn sức khỏe từ xa</span>
+ </div>
+ </div>
+ </div>
+ </div>
+ </div>
 </div>
 
 <!-- Quick Actions -->
-<div class="position-relative mb-5 container mx-auto px-4 px-md-5" style="margin-top: -80px; z-index: 2;">
+<div class="position-relative mb-5 container mx-auto px-4 px-md-5" style="margin-top: -54px; z-index: 3;">
     <!-- Left Button -->
     <button class="btn btn-white rounded-circle shadow position-absolute top-50 start-0 translate-middle-y z-3 d-none d-md-flex align-items-center justify-content-center bg-white" style="width: 45px; height: 45px; border: 1px solid #e0e0e0;" onclick="document.getElementById('quickActionsScroll').scrollBy({left: -350, behavior: 'smooth'})">
         <i class="bi bi-chevron-left text-dark"></i>
@@ -422,8 +482,8 @@ function homepageNewsDate($post) {
         <div id="partnersScroll" class="d-flex overflow-auto flex-nowrap py-3 px-3 scrollbar-hide gap-5 align-items-start" style="scroll-behavior: smooth;">
             <?php foreach ($partnerHospitals as $partner): ?>
                 <a href="facility_detail.php?id=<?php echo (int)$partner['id']; ?>" class="text-decoration-none flex-shrink-0 text-center" style="width: 170px;">
-                    <div class="rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center p-2 shadow-sm" style="width: 96px; height: 96px; border: 1px solid #c7e7ff; background: linear-gradient(135deg, #eaf8ff 0%, #d7f0ff 100%);">
-                        <img src="<?php echo htmlspecialchars(homepageHospitalLogo($partner)); ?>" alt="<?php echo htmlspecialchars($partner['name']); ?>" class="img-fluid" style="max-width: 76px; max-height: 76px; object-fit: contain;" onerror="this.onerror=null;this.src='https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/No_image_available.svg/512px-No_image_available.svg.png';">
+                    <div class="rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center shadow-sm overflow-hidden" style="width: 96px; height: 96px; border: 1px solid #c7e7ff; background: #ffffff;">
+                        <img src="<?php echo htmlspecialchars(homepageHospitalLogo($partner)); ?>" alt="<?php echo htmlspecialchars($partner['name']); ?>" class="img-fluid rounded-circle" style="width: 84px; height: 84px; object-fit: contain;" onerror="this.onerror=null;this.src='https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/No_image_available.svg/512px-No_image_available.svg.png';">
                     </div>
                     <p class="text-dark mb-0 fw-medium" style="font-size: 0.95rem;"><?php echo htmlspecialchars(stripos($partner['name'], 'MEDLATEC') !== false ? 'Bệnh viện Đa khoa MEDLATEC' : trim(preg_replace('/\s*-\s*Dịch vụ y tế tại nhà\s*$/u', '', $partner['name']))); ?> <i class="bi bi-check-circle-fill text-primary ms-1"></i></p>
                 </a>
@@ -451,36 +511,39 @@ function homepageNewsDate($post) {
 
 <!-- Promotions/Banners Trượt Ngang -->
 <style>
-    .homepage-banner-section {
-        margin-top: 2.5rem;
-    }
-    .homepage-banner-shell {
-        max-width: 1165px;
-        margin: 0 auto;
-        padding: 0 12px;
-    }
-    .homepage-banner-carousel {
-        border-radius: 16px;
-        overflow: hidden;
-        background: #ffffff;
-        box-shadow: 0 18px 45px rgba(2, 63, 109, 0.08);
-    }
-    .homepage-banner-carousel .carousel-inner,
-    .homepage-banner-carousel .carousel-item {
-        height: clamp(250px, 28vw, 360px);
-    }
-    .homepage-banner-carousel img {
-        width: 100%;
-        height: 100%;
-        object-fit: contain;
-        object-position: center;
-        display: block;
-        background: linear-gradient(90deg, #f7fbff 0%, #ffffff 50%, #f7fbff 100%);
-    }
+ .homepage-banner-section {
+ margin-top: 2.5rem;
+ }
+ .homepage-banner-shell {
+ max-width: 1165px;
+ margin: 0 auto;
+ padding: 0 12px;
+ }
+ .homepage-banner-carousel {
+ border-radius: 16px;
+ overflow: hidden;
+ background: #ffffff;
+ box-shadow: 0 18px 45px rgba(2, 63, 109, 0.08);
+ }
+ .homepage-banner-carousel .carousel-inner,
+ .homepage-banner-carousel .carousel-item {
+ height: clamp(250px, 28vw, 360px);
+ }
+ .homepage-banner-carousel img {
+ width: 100%;
+ height: 100%;
+ object-fit: cover;
+ object-position: center;
+ display: block;
+ }
     .homepage-banner-carousel .carousel-indicators {
-        position: static;
-        margin: 1rem 0 0;
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 10px;
+        margin: 0;
         gap: 6px;
+        z-index: 3;
     }
     .homepage-banner-carousel .carousel-indicators [data-bs-target] {
         width: 8px;

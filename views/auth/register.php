@@ -88,19 +88,31 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             position: relative;
         }
         .auth-left {
-            width: 52%;
+            width: 46%;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
             background: #ffffff;
             position: relative;
-            z-index: 2;
+            z-index: 3;
             padding: 40px;
             box-shadow: 10px 0 30px rgba(2, 63, 109, 0.05);
         }
+        .auth-left::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            right: -145px;
+            width: 290px;
+            height: 100%;
+            background: #ffffff;
+            transform: skewX(-7deg);
+            transform-origin: top right;
+            z-index: -1;
+        }
         .auth-right {
-            width: 48%;
+            width: 54%;
             min-height: 100vh;
             position: relative;
             background: linear-gradient(135deg, #023f6d 0%, #00b5f1 100%);
@@ -122,6 +134,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         .doctor-illustration {
             width: 85%;
             max-width: 480px;
+            margin-left: 110px;
             height: auto;
             object-fit: contain;
             z-index: 2;
@@ -394,6 +407,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             text-align: center;
             color: #ffffff;
             margin-top: 30px;
+            margin-left: 110px;
         }
         .quote {
             font-size: 1.45rem;
@@ -401,7 +415,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             line-height: 1.5;
             letter-spacing: -0.5px;
             text-shadow: 0 2px 10px rgba(2, 63, 109, 0.25);
-            max-width: 380px;
+            max-width: 520px;
             margin: 0 auto;
         }
         .login-link {
@@ -429,6 +443,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 width: 100%;
                 min-height: 100vh;
                 padding: 100px 24px 40px;
+                clip-path: none;
+            }
+            .auth-left::after {
+                display: none;
             }
             .auth-right {
                 display: none;
@@ -443,8 +461,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 </head>
 <body>
     <a href="<?php echo $base_url; ?>/index.php" class="back-link"><i class="bi bi-arrow-left"></i> Quay lại</a>
-    <a href="#" class="support-link"><i class="bi bi-telephone-fill"></i> Gọi hỗ trợ</a>
-
     <main class="auth-page">
         <!-- Left Side: Phone Login/Register Form -->
         <section class="auth-left">
@@ -505,7 +521,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <section class="auth-right">
             <img class="doctor-illustration" src="https://media.istockphoto.com/id/1359494953/vi/vec-to/c%C3%A1c-b%C3%A1c-s%C4%A9-t%C6%B0%C6%A1ng-t%C3%A1c-v%E1%BB%9Bi-giao-di%E1%BB%87n-k%E1%BB%B9-thu%E1%BA%ADt-s%E1%BB%91-v%C3%A0-ki%E1%BB%83m-tra-d%E1%BB%AF-li%E1%BB%87u-s%E1%BB%A9c-kh%E1%BB%8Fe.jpg?s=1024x1024&w=is&k=20&c=xmoUgLICa_IczGl1hwkDwnMIrJ-GqXJf9xSIV4GK9JA=" alt="Bác sĩ hỗ trợ đặt lịch" style="border-radius: 20px; object-fit: cover; height: 350px;">
             <div class="right-text-container">
-                <div class="quote">“Không còn cảnh xếp hàng dài chờ đợi để lấy số khám bệnh tại cơ sở y tế”</div>
+                <div class="quote">“Không còn cảnh xếp hàng dài chờ đợi<br>để lấy số khám bệnh tại cơ sở y tế”</div>
             </div>
         </section>
     </main>

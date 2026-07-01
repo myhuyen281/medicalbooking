@@ -44,7 +44,62 @@ if ($showHeaderHotline && class_exists('Database')) {
             overflow: hidden;
         }
         .service-dropdown {
-            min-width: 230px;
+            width: min(880px, calc(100vw - 32px));
+            background: #fff;
+            border-radius: 0 0 16px 16px !important;
+            overflow: visible;
+            padding: 0 !important;
+            left: 50% !important;
+            right: auto !important;
+            transform: translateX(-50%) !important;
+        }
+        .service-mega-menu {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(170px, 1fr));
+        }
+        .service-mega-column {
+            padding: 24px 16px 18px;
+            border-right: 1px solid #edf1f4;
+        }
+        .service-mega-column:last-child {
+            border-right: 0;
+        }
+        .service-mega-title {
+            color: #7b8a8f;
+            font-size: 0.82rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            padding-bottom: 12px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #edf1f4;
+            white-space: normal;
+        }
+        .service-mega-menu .dropdown-item {
+            border-radius: 8px;
+            white-space: normal;
+            line-height: 1.35;
+        }
+        .service-mega-badge {
+            background: #18c76f;
+            color: #fff;
+            font-size: 0.66rem;
+            border-radius: 6px;
+            padding: 2px 7px;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+        @media (max-width: 991.98px) {
+            .service-dropdown {
+                width: 100%;
+            }
+            .service-mega-menu {
+                grid-template-columns: 1fr;
+            }
+            .service-mega-column {
+                border-right: 0;
+                border-bottom: 1px solid #edf1f4;
+                padding: 14px 12px;
+            }
         }
         .news-dropdown {
             min-width: 200px;
@@ -114,15 +169,21 @@ if ($showHeaderHotline && class_exists('Database')) {
             color: #0dcaf0;
         }
         .patient-account-dropdown {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            display: none;
             width: 350px;
             max-width: calc(100vw - 24px);
             z-index: 3000;
             border-radius: 0 0 16px 16px !important;
             overflow: hidden;
             background: linear-gradient(180deg, #ffffff 0%, #fff8ed 100%);
+            list-style: none;
+            margin: 0;
         }
         .patient-account-dropdown.show {
-            display: block;
+            display: block !important;
         }
         .patient-account-dropdown .dropdown-item {
             color: #023f6d;
@@ -137,6 +198,26 @@ if ($showHeaderHotline && class_exists('Database')) {
             height: 42px;
             background: #d9f5ff;
             color: #00a8e8;
+        }
+        .header-consultation {
+            color: #023f6d;
+            line-height: 1.05;
+            text-decoration: none;
+        }
+        .header-consultation-icon {
+            color: #ff4f64;
+            font-size: 2.4rem;
+            line-height: 1;
+        }
+        .header-consultation-label {
+            font-size: 0.92rem;
+            font-weight: 800;
+        }
+        .header-consultation-phone {
+            color: #ffa42b;
+            font-size: 1.42rem;
+            font-weight: 900;
+            letter-spacing: 0.3px;
         }
     </style>
 </head>
@@ -159,8 +240,6 @@ if ($showHeaderHotline && class_exists('Database')) {
                                 <button class="btn btn-info rounded-pill btn-sm fw-bold px-3 text-white border-0 dropdown-toggle" 
                                         type="button" 
                                         id="patientAccountDropdown"
-                                        data-bs-toggle="dropdown" 
-                                        data-bs-auto-close="outside"
                                         aria-expanded="false"
                                         style="background: linear-gradient(135deg, #00d4ff 0%, #00a8e8 100%); font-size: 0.9rem; height: 34px; box-shadow: 0 2px 8px rgba(0,168,232,0.3);">
                                     <i class="bi bi-person-circle me-1"></i><?php echo htmlspecialchars($_SESSION['full_name']); ?>
@@ -173,13 +252,13 @@ if ($showHeaderHotline && class_exists('Database')) {
                                             </div>
                                             <div>
                                                 <div class="text-muted small">Xin chào,</div>
-                                                <div class="fw-bold text-info" style="font-size: 17px;"><?php echo htmlspecialchars($_SESSION['phone'] ?: $_SESSION['full_name']); ?></div>
+                                                <div class="fw-bold text-info" style="font-size: 17px;"><?php echo htmlspecialchars(($_SESSION['phone'] ?? '') !== '' ? $_SESSION['phone'] : $_SESSION['full_name']); ?></div>
                                             </div>
                                         </div>
                                     </li>
                                     <li><a class="dropdown-item py-3 px-3" href="<?php echo $base_url; ?>/views/patient/records.php"><i class="bi bi-file-medical me-2"></i>Hồ sơ bệnh nhân</a></li>
-                                    <li><a class="dropdown-item py-3 px-3" href="#"><i class="bi bi-file-earmark-text me-2"></i>Phiếu khám bệnh</a></li>
-                                    <li><a class="dropdown-item py-3 px-3" href="#"><i class="bi bi-bell me-2"></i>Thông báo</a></li>
+                                    <li><a class="dropdown-item py-3 px-3" href="<?php echo $base_url; ?>/views/patient/bills.php"><i class="bi bi-file-earmark-text me-2"></i>Phiếu khám bệnh</a></li>
+                                    <li><a class="dropdown-item py-3 px-3" href="<?php echo $base_url; ?>/views/patient/notifications.php"><i class="bi bi-bell me-2"></i>Thông báo</a></li>
                                     <li><hr class="dropdown-divider my-1"></li>
                                     <li><a class="dropdown-item py-3 px-3 text-danger" href="<?php echo $base_url; ?>/views/auth/logout.php"><i class="bi bi-box-arrow-right me-2"></i>Đăng xuất</a></li>
                                     <li class="px-3 py-3"><small class="text-muted">Cập nhật mới nhất: <?php echo date('d/m/Y'); ?></small></li>
@@ -212,6 +291,14 @@ if ($showHeaderHotline && class_exists('Database')) {
                 <!-- Logo -->
                 <a class="navbar-brand text-info fw-bolder fs-3 m-0 p-0 flex-shrink-0" style="letter-spacing: -1px; color: #00b5f1 !important; text-transform: uppercase;" href="<?php echo $base_url; ?>/index.php">
                     medicailbooking
+                </a>
+
+                <a href="tel:0939837176" class="header-consultation d-none d-lg-flex align-items-center gap-2 ms-4 flex-shrink-0">
+                    <i class="bi bi-headset header-consultation-icon"></i>
+                    <span>
+                        <span class="header-consultation-label d-block">Tư vấn/Đặt khám</span>
+                        <span class="header-consultation-phone d-block">0939837176</span>
+                    </span>
                 </a>
 
                 <?php if ($showHeaderSearch): ?>
@@ -251,20 +338,41 @@ if ($showHeaderHotline && class_exists('Database')) {
                             </ul>
                         </li>
                         <li class="nav-item dropdown px-1">
-                            <a class="nav-link dropdown-toggle text-dark" href="#" role="button" data-bs-toggle="dropdown">
+                            <a class="nav-link dropdown-toggle text-dark" href="#" id="serviceDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                 Dịch vụ y tế
                             </a>
-                            <ul class="dropdown-menu border-0 shadow-sm mt-2 rounded-3 py-2 service-dropdown">
-                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="<?php echo $base_url; ?>/booking_at_facility.php">Đặt khám tại cơ sở</a></li>
-                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="<?php echo $base_url; ?>/specialty_facilities.php">Đặt khám chuyên khoa</a></li>
-                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="#">Gọi video với bác sĩ</a></li>
-                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="<?php echo $base_url; ?>/lab_booking.php">Đặt lịch xét nghiệm</a></li>
-                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="<?php echo $base_url; ?>/after_hours_booking.php">Đặt khám ngoài giờ</a></li>
-                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="<?php echo $base_url; ?>/doctor_booking.php">Đặt khám theo bác sĩ</a></li>
-                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="<?php echo $base_url; ?>/imaging_booking.php">Đặt lịch Chụp phim & Nội soi</a></li>
-                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="<?php echo $base_url; ?>/health_package_booking.php">Gói khám sức khỏe</a></li>
-                                <li><a class="dropdown-item py-3 px-3 fw-semibold" href="<?php echo $base_url; ?>/facilities.php?type=home">Y tế tại nhà</a></li>
-                            </ul>
+ <ul class="dropdown-menu border-0 shadow-sm mt-2 service-dropdown service-mega-menu-wrap" aria-labelledby="serviceDropdown">
+ <li class="service-mega-menu">
+ <div class="service-mega-column">
+ <div class="service-mega-title">Khám bệnh</div>
+ <a class="dropdown-item py-2 px-3" href="<?php echo $base_url; ?>/booking_at_facility.php">Đặt khám tại cơ sở</a>
+ <a class="dropdown-item py-2 px-3" href="<?php echo $base_url; ?>/specialty_facilities.php">Đặt khám chuyên khoa</a>
+ <a class="dropdown-item py-2 px-3" href="<?php echo $base_url; ?>/doctor_booking.php">Đặt khám theo bác sĩ</a>
+ <a class="dropdown-item py-2 px-3" href="<?php echo $base_url; ?>/after_hours_booking.php">Đặt khám ngoài giờ</a>
+ <a class="dropdown-item py-2 px-3" href="#">Gọi video với bác sĩ</a>
+ </div>
+ <div class="service-mega-column">
+ <div class="service-mega-title">Xét nghiệm – Chẩn đoán hình ảnh</div>
+ <a class="dropdown-item py-2 px-3" href="<?php echo $base_url; ?>/lab_booking.php">Đặt lịch xét nghiệm</a>
+ <a class="dropdown-item py-2 px-3" href="<?php echo $base_url; ?>/lab_package_booking.php">Gói xét nghiệm</a>
+ <a class="dropdown-item py-2 px-3" href="<?php echo $base_url; ?>/imaging_booking.php">Chụp phim &amp; Nội soi</a>
+ <a class="dropdown-item py-2 px-3" href="<?php echo $base_url; ?>/health_circular_booking.php">Thông tư khám sức khỏe</a>
+ </div>
+ <div class="service-mega-column">
+ <div class="service-mega-title">Gói khám sức khỏe</div>
+ <a class="dropdown-item py-2 px-3" href="<?php echo $base_url; ?>/health_package_booking.php">Gói khám tổng quát</a>
+ <a class="dropdown-item py-2 px-3" href="<?php echo $base_url; ?>/health_package_booking.php">Gói khám theo giới tính</a>
+ <a class="dropdown-item py-2 px-3" href="<?php echo $base_url; ?>/health_package_booking.php">Gói khám chuyên sâu</a>
+ </div>
+ <div class="service-mega-column">
+ <div class="service-mega-title">Tiêm chủng – Y tế tại nhà</div>
+ <a class="dropdown-item py-2 px-3" href="<?php echo $base_url; ?>/vaccination_booking.php">Đặt lịch tiêm chủng <span class="service-mega-badge">Hot</span></a>
+ <a class="dropdown-item py-2 px-3" href="<?php echo $base_url; ?>/home_care_booking.php">Y tế tại nhà</a>
+ <a class="dropdown-item py-2 px-3" href="<?php echo $base_url; ?>/facilities.php?type=home">Tìm cơ sở y tế tại nhà</a>
+ <a class="dropdown-item py-2 px-3" href="<?php echo $base_url; ?>/facilities.php?type=vaccination">Tìm điểm tiêm chủng</a>
+ </div>
+ </li>
+ </ul>
                         </li>
                         <li class="nav-item dropdown px-1 position-relative">
                             <a class="nav-link dropdown-toggle text-dark" href="<?php echo $base_url; ?>/news.php" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -354,6 +462,24 @@ if ($showHeaderHotline && class_exists('Database')) {
                 setTimeout(headerSearchTypeEffect, speed);
             }
             setTimeout(headerSearchTypeEffect, 1000);
+        }
+
+        const patientAccountButton = document.getElementById('patientAccountDropdown');
+        if (patientAccountButton) {
+            const patientAccountMenu = patientAccountButton.nextElementSibling;
+            patientAccountButton.addEventListener('click', function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+                const isOpen = patientAccountMenu.classList.toggle('show');
+                patientAccountButton.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            });
+            patientAccountMenu.addEventListener('click', function (event) {
+                event.stopPropagation();
+            });
+            document.addEventListener('click', function () {
+                patientAccountMenu.classList.remove('show');
+                patientAccountButton.setAttribute('aria-expanded', 'false');
+            });
         }
 
         // Only apply hover to navbar dropdowns (not top bar)

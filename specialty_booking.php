@@ -329,8 +329,21 @@ if ($hospital) {
                         <div id="timeOptions" class="d-none">
                             <?php if (count($bookingTimeSlots) > 0): ?>
                                 <?php
-                                    $morningSlots = array_filter($bookingTimeSlots, function ($slot) { return in_array($slot['period'] ?? (($slot['start'] ?? '') >= '12:00' ? 'afternoon' : 'morning'), ['morning', 'both'], true); });
-                                    $afternoonSlots = array_filter($bookingTimeSlots, function ($slot) { return in_array($slot['period'] ?? (($slot['start'] ?? '') >= '12:00' ? 'afternoon' : 'morning'), ['afternoon', 'both'], true); });
+                                    $now = new DateTime();
+                                    $currentMinutes = $now->format('H') * 60 + $now->format('i');
+                                    $isTodaySelection = isset($_GET['booking_date']) && $_GET['booking_date'] === date('d/m/Y');
+                                    $morningSlots = array_filter($bookingTimeSlots, function ($slot) use ($currentMinutes, $isTodaySelection) {
+                                        $ok = in_array($slot['period'] ?? (($slot['start'] ?? '') >= '12:00' ? 'afternoon' : 'morning'), ['morning', 'both'], true);
+                                        if (!$isTodaySelection) return $ok;
+                                        [$h, $m] = array_map('intval', explode(':', $slot['start'] ?? '00:00'));
+                                        return $ok && ($h * 60 + $m) > $currentMinutes;
+                                    });
+                                    $afternoonSlots = array_filter($bookingTimeSlots, function ($slot) use ($currentMinutes, $isTodaySelection) {
+                                        $ok = in_array($slot['period'] ?? (($slot['start'] ?? '') >= '12:00' ? 'afternoon' : 'morning'), ['afternoon', 'both'], true);
+                                        if (!$isTodaySelection) return $ok;
+                                        [$h, $m] = array_map('intval', explode(':', $slot['start'] ?? '00:00'));
+                                        return $ok && ($h * 60 + $m) > $currentMinutes;
+                                    });
                                 ?>
                                 <?php if (count($morningSlots) > 0): ?>
                                     <div class="fw-bold mb-2" style="color: #023f6d;">Buổi sáng</div>
@@ -565,6 +578,11 @@ let selectedDoctorSlots = {};
 let selectedDateKey = '';
 let selectedDate = false;
 let selectedTime = false;
+let selectedDateText = '';
+let selectedTimeText = '';
+let selectedServiceName = <?php echo json_encode($selectedService['name'] ?? '', JSON_UNESCAPED_UNICODE); ?>;
+let selectedServicePrice = <?php echo json_encode($selectedServicePriceDisplay, JSON_UNESCAPED_UNICODE); ?>;
+let selectedSpecialtyName = <?php echo json_encode($selectedSpecialtyName, JSON_UNESCAPED_UNICODE); ?>;
 let calendarMonth = new Date();
 const bookingAdvanceDays = <?php echo (int)$bookingAdvanceDays; ?>;
 const specialtySelectButton = document.querySelector('#specialtyField button');
@@ -634,6 +652,64 @@ function updateContinueButton() {
     }
 }
 
+function getTodayKey() {
+    const now = new Date();
+    return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+}
+
+function getCurrentMinutes() {
+    const now = new Date();
+    return now.getHours() * 60 + now.getMinutes();
+}
+
+function isFutureTimeSlot(slotStart, dateKey) {
+    if (dateKey !== getTodayKey()) {
+        return true;
+    }
+    const [h, m] = String(slotStart || '00:00').split(':').map(Number);
+    return (h * 60 + m) > getCurrentMinutes();
+}
+
+function renderStaticTimeOptions(dateKey) {
+    const timeOptions = document.getElementById('timeOptions');
+    const timePlaceholder = document.getElementById('timePlaceholder');
+    const allTimeCards = Array.from(document.querySelectorAll('#timeOptions .time-card'));
+
+    allTimeCards.forEach(function (button) {
+        const start = button.textContent.trim().split('-')[0].trim();
+        const available = isFutureTimeSlot(start, dateKey);
+        button.classList.toggle('d-none', !available);
+        button.disabled = !available;
+        button.closest('.col-md-4')?.classList.toggle('d-none', !available);
+    });
+
+    document.querySelectorAll('#timeOptions .fw-bold.mb-2').forEach(function (title) {
+        const row = title.nextElementSibling;
+        if (!row || !row.classList.contains('row')) return;
+        const hasVisible = Array.from(row.querySelectorAll('.col-md-4')).some(function (col) {
+            return !col.classList.contains('d-none');
+        });
+        title.classList.toggle('d-none', !hasVisible);
+        row.classList.toggle('d-none', !hasVisible);
+    });
+
+    const hasAnyVisible = Array.from(document.querySelectorAll('#timeOptions .time-card')).some(function (button) {
+        return !button.classList.contains('d-none');
+    });
+
+    document.getElementById('emptyStaticTimeNotice')?.remove();
+    if (!hasAnyVisible) {
+        const notice = document.createElement('div');
+        notice.id = 'emptyStaticTimeNotice';
+        notice.className = 'text-muted small';
+        notice.textContent = 'Không còn giờ khám trống trong ngày này.';
+        timeOptions.insertBefore(notice, timeOptions.lastElementChild);
+    }
+
+    timePlaceholder.classList.add('d-none');
+    timeOptions.classList.remove('d-none');
+}
+
 function renderDateOptions(weekdays, selectedDate = null) {
     const dateOptions = document.getElementById('dateOptions');
     const weekdaySet = weekdays.length ? new Set(weekdays.map(String)) : null;
@@ -692,11 +768,22 @@ function renderDoctorTimeOptions(dateKey) {
     selectedDateKey = dateKey;
     timeOptions.innerHTML = '';
 
-    if (!slots.length) {
-        timeOptions.innerHTML = '<div class="text-muted small">Bác sĩ chưa có giờ khám trống trong ngày này.</div>';
+    const now = new Date();
+    const todayKey = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+    const isToday = dateKey === todayKey;
+    const currentTime = now.getHours() * 60 + now.getMinutes();
+
+    const filtered = slots.filter(function (slot) {
+        if (!isToday) return true;
+        const [h, m] = (slot.start || '00:00').split(':').map(Number);
+        return (h * 60 + m) > currentTime;
+    });
+
+    if (!filtered.length) {
+        timeOptions.innerHTML = '<div class="text-muted small">Không còn giờ khám trống trong ngày này.</div>';
     } else {
-        const morningSlots = slots.filter(function (slot) { return (slot.start || '') < '12:00'; });
-        const afternoonSlots = slots.filter(function (slot) { return (slot.start || '') >= '12:00'; });
+        const morningSlots = filtered.filter(function (slot) { return (slot.start || '') < '12:00'; });
+        const afternoonSlots = filtered.filter(function (slot) { return (slot.start || '') >= '12:00'; });
         [
             { title: 'Buổi sáng', items: morningSlots },
             { title: 'Buổi chiều', items: afternoonSlots }
@@ -964,6 +1051,7 @@ document.querySelectorAll('.specialty-option').forEach(function (button) {
     button.addEventListener('click', function () {
         const specialtyName = this.dataset.specialty;
         selectedSpecialty = true;
+        selectedSpecialtyName = specialtyName;
         if (bookingFlow === 'specialty_first') {
             selectedService = false;
         }
@@ -1031,6 +1119,8 @@ function selectServiceOption(option) {
         return;
     }
     const servicePrice = option.dataset.price || '';
+    selectedServiceName = serviceName;
+    selectedServicePrice = servicePrice;
     const insuranceValue = requiresInsurance ? (option.querySelector('.insurance-radio:checked')?.value || 'Không') : '';
     document.getElementById('selectedServiceText').innerHTML = '<div><i class="bi bi-hand-index-thumb-fill me-2" style="color: #00a8f0;"></i>' + serviceName + (servicePrice ? ' - ' + servicePrice : '') + '</div>' + (insuranceValue ? '<div class="badge mt-2 px-3 py-2 fw-medium" style="background-color:#e8f4ff; color:#00a8f0;">Khám ' + (insuranceValue === 'Có' ? 'có' : 'không') + ' BHYT</div>' : '');
     pendingServiceDetail = '';
@@ -1105,8 +1195,19 @@ document.getElementById('continueButton').addEventListener('click', function () 
     if (this.disabled) {
         return;
     }
-    const doctorQuery = selectedDoctorId ? '&doctor_id=' + encodeURIComponent(selectedDoctorId) : '';
-    window.location.href = patientStepUrl + doctorQuery;
+    const params = new URLSearchParams();
+    params.set('id', <?php echo (int)($hospital['id'] ?? 0); ?>);
+    params.set('facility', <?php echo json_encode($facilityName, JSON_UNESCAPED_UNICODE); ?>);
+    params.set('address', <?php echo json_encode($facilityAddress, JSON_UNESCAPED_UNICODE); ?>);
+    <?php if ($bookingFormId > 0): ?>params.set('booking_form_id', <?php echo (int)$bookingFormId; ?>);<?php endif; ?>
+    if (selectedDoctorId) params.set('doctor_id', selectedDoctorId);
+    params.set('booking_title', 'Thông tin đặt khám');
+    if (selectedServiceName) params.set('booking_service', selectedServiceName);
+    if (selectedSpecialtyName) params.set('booking_specialty', selectedSpecialtyName);
+    if (selectedDateText) params.set('booking_date', selectedDateText);
+    if (selectedTimeText) params.set('booking_time', selectedTimeText);
+    if (selectedServicePrice) params.set('booking_price', selectedServicePrice);
+    window.location.href = 'booking_patient.php?' + params.toString();
 });
 
 document.getElementById('prevCalendarMonth').addEventListener('click', function () {
@@ -1143,14 +1244,23 @@ document.addEventListener('click', function (event) {
     if (button.classList.contains('date-card') && !button.id) {
         selectedDate = true;
         selectedTime = false;
+        selectedTimeText = '';
+        selectedDateText = button.textContent.replace(/\s+/g, ' ').trim();
         document.querySelectorAll('.time-card').forEach(function (item) {
             item.style.border = '';
             item.style.backgroundColor = '';
             item.style.color = '#023f6d';
         });
+        if (button.dataset.date && bookingFlow !== 'doctor_first') {
+            renderStaticTimeOptions(button.dataset.date);
+        }
     }
     if (button.classList.contains('time-card')) {
+        if (button.disabled || button.classList.contains('d-none')) {
+            return;
+        }
         selectedTime = true;
+        selectedTimeText = button.textContent.replace(/\s+/g, ' ').trim();
     }
     if (bookingFlow === 'doctor_first' && button.classList.contains('date-card') && button.dataset.date) {
         renderDoctorTimeOptions(button.dataset.date);

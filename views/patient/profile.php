@@ -12,6 +12,36 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'patient') {
 $db = new Database();
 $userId = $_SESSION['user_id'];
 
+try {
+    $db->query("CREATE TABLE IF NOT EXISTS patient_profiles (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL UNIQUE,
+        date_of_birth DATE NULL,
+        gender VARCHAR(20) NULL,
+        identity_card VARCHAR(50) DEFAULT '',
+        insurance_number VARCHAR(50) DEFAULT '',
+        province VARCHAR(100) DEFAULT '',
+        district VARCHAR(100) DEFAULT '',
+        ward VARCHAR(100) DEFAULT '',
+        address_detail VARCHAR(255) DEFAULT '',
+        emergency_contact_name VARCHAR(150) DEFAULT '',
+        emergency_contact_phone VARCHAR(30) DEFAULT '',
+        emergency_contact_relationship VARCHAR(50) DEFAULT '',
+        blood_type VARCHAR(10) NULL,
+        allergies TEXT NULL,
+        chronic_diseases TEXT NULL,
+        medications TEXT NULL,
+        medical_history TEXT NULL,
+        smoking TINYINT(1) DEFAULT 0,
+        drinking_alcohol TINYINT(1) DEFAULT 0,
+        exercise_frequency VARCHAR(50) NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )");
+    $db->execute();
+} catch (Exception $e) {
+}
+
 // Handle form submission
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $data = [
@@ -116,11 +146,13 @@ $profile = $db->single() ?: [];
         }
         
         .mobile-container {
-            max-width: 480px;
+            width: 100%;
+            max-width: none;
             margin: 0 auto;
-            background: #fff;
+            background: #eaf7fc;
             min-height: 100vh;
             position: relative;
+            padding: 48px 0;
         }
         
         /* Header */
@@ -222,7 +254,7 @@ $profile = $db->single() ?: [];
         
         /* Menu Section */
         .menu-section {
-            padding: 30px 20px;
+            display: none;
         }
         
         .menu-title {
@@ -290,34 +322,35 @@ $profile = $db->single() ?: [];
         
         /* Form Modal */
         .form-section {
-            background: white;
-            border-radius: 16px;
-            padding: 24px;
-            margin-bottom: 16px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            background: transparent;
+            border-radius: 0;
+            padding: 0;
+            margin-bottom: 24px;
+            box-shadow: none;
         }
         
         .form-section h6 {
-            font-size: 16px;
-            font-weight: bold;
-            color: #1a1a1a;
-            margin-bottom: 16px;
-            padding-bottom: 12px;
-            border-bottom: 2px solid #f0f0f0;
+            font-size: 24px;
+            font-weight: 800;
+            color: #023f6d;
+            margin: 24px 0 18px;
+            padding-bottom: 0;
+            border-bottom: 1px solid #cfdce5;
         }
         
         .form-label {
-            font-size: 13px;
-            font-weight: 600;
-            color: #333;
-            margin-bottom: 6px;
+            font-size: 20px;
+            font-weight: 800;
+            color: #023f6d;
+            margin-bottom: 8px;
         }
         
-        .form-control {
-            font-size: 14px;
+        .form-control, .form-select {
+            font-size: 16px;
             border-radius: 10px;
-            padding: 12px 16px;
-            border: 1px solid #e0e0e0;
+            padding: 14px 16px;
+            border: 1px solid #d7dce3;
+            min-height: 50px;
         }
         
         .form-control:focus {
@@ -338,8 +371,21 @@ $profile = $db->single() ?: [];
         }
         
         .alert {
-            border-radius: 12px;
-            margin: 20px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+        }
+        #profileForm {
+            max-width: 805px;
+            margin: 0 auto;
+        }
+        .profile-header, .stats-container, .sidebar, .d-flex > .mobile-container > a, .d-flex > .mobile-container > hr {
+            display: none !important;
+        }
+        .btn-save {
+            width: 120px;
+            border-radius: 8px;
+            padding: 12px 24px;
+            margin-top: 0;
         }
     </style>
 </head>
@@ -461,7 +507,7 @@ $profile = $db->single() ?: [];
 
             <form method="POST" action="" id="profileForm">
                     <!-- Thông tin cơ bản -->
-                    <div class="form-section collapse" id="info-form">
+                    <div class="form-section collapse show" id="info-form">
                         <h6><i class="bi bi-person me-2"></i>Thông tin cơ bản</h6>
                         <div class="row g-3">
                             <div class="col-12">
@@ -501,7 +547,7 @@ $profile = $db->single() ?: [];
                     </div>
 
                     <!-- Địa chỉ -->
-                    <div class="form-section collapse" id="address-form">
+                    <div class="form-section collapse show" id="address-form">
                         <h6><i class="bi bi-geo-alt me-2"></i>Địa chỉ liên hệ</h6>
                         <div class="row g-3">
                             <div class="col-12">
@@ -524,7 +570,7 @@ $profile = $db->single() ?: [];
                     </div>
 
                     <!-- Người liên hệ khẩn cấp -->
-                    <div class="form-section collapse" id="emergency-form">
+                    <div class="form-section collapse show d-none" id="emergency-form">
                         <h6><i class="bi bi-telephone me-2"></i>Người liên hệ khẩn cấp</h6>
                         <div class="row g-3">
                             <div class="col-12">
