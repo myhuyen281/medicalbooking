@@ -1,11 +1,10 @@
 <?php
 require_once 'config/database.php';
+require_once 'controllers/RefundController.php';
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-
-include 'includes/header.php';
 
 $facilityName = trim($_GET['facility_name'] ?? ($_GET['facility'] ?? 'Bệnh viện tại Cần Thơ'));
 $facilityAddress = trim($_GET['facility_address'] ?? ($_GET['address'] ?? ''));
@@ -17,11 +16,47 @@ $bookingPrice = trim($_GET['booking_price'] ?? '');
 $patientName = trim($_GET['patient_name'] ?? '');
 $patientDob = trim($_GET['patient_dob'] ?? '');
 $paymentMethod = trim($_GET['payment_method'] ?? ($_SESSION['last_booking_payment_method'] ?? (isset($_GET['vnp_BankCode']) ? 'vnpay' : '')));
-$cancelPending = !empty($_SESSION['cancel_pending']) || !empty($_GET['cancel_pending']) || isset($_COOKIE['cancel_pending']) || (isset($_SERVER['HTTP_COOKIE']) && strpos($_SERVER['HTTP_COOKIE'], 'cancel_pending=1') !== false);
+$cancelPending = !empty($_GET['cancel_pending']);
+$refundDisplayStatus = $cancelPending ? 'pending' : '';
+if (isset($_COOKIE['cancel_pending'])) {
+    setcookie('cancel_pending', '', time() - 3600, '/');
+    unset($_COOKIE['cancel_pending']);
+}
+$appointmentIdFromUrl = isset($_GET['appointment_id']) ? (int)$_GET['appointment_id'] : 0;
+if ($appointmentIdFromUrl > 0 && isset($_SESSION['user_id'])) {
+    try {
+        $statusDb = new Database();
+        $statusDb->query("SELECT a.status, rr.status AS refund_status
+            FROM appointments a
+            LEFT JOIN refund_requests rr ON rr.appointment_id = a.id
+            WHERE a.id = :id AND a.patient_id = :patient_id
+            LIMIT 1");
+        $statusDb->bind(':id', $appointmentIdFromUrl);
+        $statusDb->bind(':patient_id', (int)$_SESSION['user_id']);
+        $appointmentStatus = $statusDb->single();
+        $refundDisplayStatus = $appointmentStatus['refund_status'] ?? '';
+        $cancelPending = $appointmentStatus && (in_array($refundDisplayStatus, ['pending', 'refunded'], true) || in_array($appointmentStatus['status'], ['cancel_pending', 'cancelled'], true));
+    } catch (Exception $e) {
+    }
+}
 $hospitalId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $hospitalMapEmbedUrl = '';
 $createdAppointmentId = 0;
 $bookingError = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'cancel_ticket' && isset($_SESSION['user_id']) && ($_SESSION['role'] ?? '') === 'patient') {
+    $cancelAppointmentId = (int)($_POST['appointment_id'] ?? 0);
+    $cancelReason = trim($_POST['reason'] ?? 'Khách hàng hủy phiếu khám');
+    if ($cancelAppointmentId > 0) {
+        $refundController = new RefundController();
+        $refundController->cancelAppointment($cancelAppointmentId, 'patient', $cancelReason, (int)$_SESSION['user_id']);
+    }
+    $redirectParams = $_GET ?: ($_SESSION['latest_booking_ticket'] ?? []);
+    $redirectParams['appointment_id'] = $cancelAppointmentId;
+    $redirectParams['cancel_pending'] = 1;
+    header('Location: booking_success.php?' . http_build_query($redirectParams));
+    exit();
+}
 
 try {
  $dbHospital = new Database();
@@ -110,14 +145,18 @@ if (isset($_SESSION['user_id']) && ($_SESSION['role'] ?? '') === 'patient' && $h
 
         if ($existingAppointment) {
             $createdAppointmentId = (int)$existingAppointment['id'];
+            if ($appointmentIdFromUrl <= 0) {
+                $appointmentIdFromUrl = $createdAppointmentId;
+            }
         } else {
- $db->query("INSERT INTO appointments (patient_id, doctor_id, schedule_id, symptoms, status) VALUES (:pid, :did, :sid, :symptoms, 'pending')");
+ $db->query("INSERT INTO appointments (patient_id, doctor_id, schedule_id, symptoms, status) VALUES (:pid, :did, :sid, :symptoms, 'confirmed')");
  $db->bind(':pid', $patientId);
  $db->bind(':did', $doctorId);
  $db->bind(':sid', $scheduleId);
  $db->bind(':symptoms', $bookingService !== '' ? $bookingService : 'Khám bệnh');
  $db->execute();
             $createdAppointmentId = (int)$db->dbh->lastInsertId();
+            $appointmentIdFromUrl = $createdAppointmentId;
         }
 
         $db->query("UPDATE schedules SET status = 'booked' WHERE id = :sid");
@@ -155,6 +194,7 @@ if ($bookingSaved) {
 } else {
  unset($_SESSION['latest_booking_ticket']);
 }
+include 'includes/header.php';
 ?>
 
 <div class="px-2 px-md-4 pb-5" style="background-color:#eaf7fc;min-height:720px;">
@@ -184,7 +224,7 @@ if ($bookingSaved) {
                 </div>
             </div>
             <?php if ($bookingSaved): ?>
- <button id="ticketStatusBadge" class="btn text-white fw-bold rounded-pill px-4 mb-4" style="background:#ff7427;">Đặt khám thành công</button>
+ <button id="ticketStatusBadge" class="btn text-white fw-bold rounded-pill px-4 mb-4" style="background:<?php echo $cancelPending ? (($refundDisplayStatus === 'refunded') ? '#09c963' : '#ffc107') : '#ff7427'; ?>;<?php echo ($cancelPending && $refundDisplayStatus !== 'refunded') ? 'color:#023f6d !important;' : ''; ?>"><?php echo $cancelPending ? (($refundDisplayStatus === 'refunded') ? 'Đã hoàn tiền' : 'Chờ hoàn tiền') : 'Đặt khám thành công'; ?></button>
  <?php else: ?>
  <button class="btn text-white fw-bold rounded-pill px-4 mb-4" style="background:#dc3545;">Đặt khám chưa hoàn tất</button>
  <?php if ($bookingError !== ''): ?>
@@ -215,7 +255,7 @@ if ($bookingSaved) {
 
             <div class="mx-auto mt-4" style="max-width:360px;">
             <?php if ($cancelPending): ?>
-                <button type="button" class="btn w-100 rounded-3 py-3 fw-bold" style="background:#e5e7eb;color:#374151;" disabled>Chờ hủy</button>
+                <button type="button" class="btn w-100 rounded-3 py-3 fw-bold" style="background:#e5e7eb;color:#374151;" disabled><?php echo $refundDisplayStatus === 'refunded' ? 'Đã hoàn tiền' : 'Chờ hoàn tiền'; ?></button>
             <?php else: ?>
                 <button type="button" class="btn w-100 rounded-3 py-3 fw-bold" style="background:#e5e7eb;color:#374151;" data-bs-toggle="modal" data-bs-target="#cancelTicketModal"><i class="bi bi-x-lg me-2"></i>Hủy phiếu</button>
             <?php endif; ?>
@@ -233,7 +273,10 @@ if ($bookingSaved) {
             </div>
             <div class="modal-body px-5 pb-2">
                 <p class="text-muted fst-italic text-center mb-4">MedicalBooking mong nhận được sự góp ý của bạn để có thể phục vụ tốt hơn</p>
-                <form id="cancelTicketForm">
+                <form id="cancelTicketForm" method="POST" action="<?php echo htmlspecialchars($_SERVER['REQUEST_URI']); ?>">
+                    <input type="hidden" name="action" value="cancel_ticket">
+                    <input type="hidden" name="appointment_id" value="<?php echo (int)($appointmentIdFromUrl ?: $createdAppointmentId); ?>">
+                    <input type="hidden" name="reason" id="cancelReasonInput" value="Khách hàng hủy phiếu khám">
                     <div class="form-check mb-3"><input class="form-check-input cancel-reason" type="checkbox" value="Đặt nhầm chuyên khoa" id="cancelReason1"><label class="form-check-label" for="cancelReason1">Đặt nhầm chuyên khoa</label></div>
                     <div class="form-check mb-3"><input class="form-check-input cancel-reason" type="checkbox" value="Đặt nhầm giờ khám" id="cancelReason2"><label class="form-check-label" for="cancelReason2">Đặt nhầm giờ khám</label></div>
                     <div class="form-check mb-3"><input class="form-check-input cancel-reason" type="checkbox" value="Không còn nhu cầu" id="cancelReason3"><label class="form-check-label" for="cancelReason3">Không còn nhu cầu</label></div>
@@ -245,7 +288,7 @@ if ($bookingSaved) {
             <div class="modal-footer border-0 px-5 pb-3 pt-2">
                 <div class="row w-100 g-3">
                     <div class="col-6"><button type="button" class="btn btn-outline-info fw-bold py-3 w-100 rounded-3" data-bs-dismiss="modal">Không hủy</button></div>
-                    <div class="col-6"><button type="button" id="submitCancelTicket" class="btn fw-bold py-3 w-100 rounded-3 text-white" style="background:#d7dce3;" disabled>Gửi</button></div>
+                    <div class="col-6"><button type="submit" form="cancelTicketForm" id="submitCancelTicket" class="btn fw-bold py-3 w-100 rounded-3 text-white" style="background:#d7dce3;" disabled>Gửi</button></div>
                 </div>
                 <div class="w-100 text-center small text-muted mt-2">Hotline hỗ trợ <strong style="color:#00a8e8;">1900 xxxx</strong></div>
             </div>
@@ -353,33 +396,12 @@ localStorage.removeItem('latest_booking_ticket');
         });
     }
 
-    if (submitBtn) {
-        submitBtn.addEventListener('click', () => {
+    if (form) {
+        form.addEventListener('submit', () => {
             const reasons = Array.from(document.querySelectorAll('.cancel-reason:checked')).map(c => c.value);
             if (otherChk && otherChk.checked && otherText.value.trim()) reasons.push(otherText.value.trim());
-
-            const bookingPriceEl = document.querySelector('.fw-bold.fs-5');
-            const priceText = bookingPriceEl ? bookingPriceEl.textContent : '0đ';
-            const price = parseInt(priceText.replace(/[^0-9]/g, '')) || 0;
-
-            bootstrap.Modal.getOrCreateInstance(cancelModal).hide();
-            form.reset();
-            otherText.classList.add('d-none');
-            submitBtn.disabled = true;
-            submitBtn.style.background = '#d7dce3';
-
-            const isOnline = <?php echo json_encode($paymentMethod === 'vnpay'); ?>;
-
-            if (isOnline) {
-                // Thanh toán online → mở thẳng chính sách hoàn tiền
-                bootstrap.Modal.getOrCreateInstance(document.getElementById('refundPolicyModal')).show();
-            } else {
-                // Thanh toán tại quầy → thông báo hủy thành công
-                const successModalEl = document.getElementById('cancelSuccessModal');
-                const successText = document.getElementById('cancelSuccessText');
-                successText.textContent = 'Phiếu khám đã được hủy thành công.';
-                new bootstrap.Modal(successModalEl).show();
-            }
+            const reasonInput = document.getElementById('cancelReasonInput');
+            if (reasonInput) reasonInput.value = reasons.length ? reasons.join(', ') : 'Khách hàng hủy phiếu khám';
         });
     }
 
@@ -393,17 +415,16 @@ localStorage.removeItem('latest_booking_ticket');
                 document.body.style.overflow = '';
                 document.body.style.paddingRight = '';
             }, 50);
-            document.cookie = 'cancel_pending=1; path=/; max-age=86400';
             localStorage.setItem('cancel_pending_<?php echo htmlspecialchars($ticketCode ?: md5($_SERVER['REQUEST_URI'])); ?>', '1');
             const badge = document.getElementById('ticketStatusBadge');
             if (badge) {
-                badge.textContent = 'Chờ hủy';
+                badge.textContent = 'Chờ hoàn tiền';
                 badge.style.background = '#ffc107';
                 badge.style.color = '#023f6d';
             }
             const cancelButton = document.querySelector('[data-bs-target="#cancelTicketModal"]');
             if (cancelButton) {
-                cancelButton.textContent = 'Chờ hủy';
+                cancelButton.textContent = 'Chờ hoàn tiền';
                 cancelButton.disabled = true;
             }
             alert('Yêu cầu hủy đã được gửi. Vui lòng chờ hospital/admin xác nhận hủy để hoàn tiền.');

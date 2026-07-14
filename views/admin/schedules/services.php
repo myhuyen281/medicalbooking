@@ -146,7 +146,9 @@ if (!$hospitalId && $isSystemAdmin) {
     $hospitalId = $firstHospital['id'] ?? null;
 }
 
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
+if ($_SERVER["REQUEST_METHOD"] == "POST" && $isHospitalAdmin && !$currentHospitalSubscriptionActive) {
+    $error = hospitalSubscriptionExpiredMessage();
+} elseif ($_SERVER["REQUEST_METHOD"] == "POST") {
     $hospitalId = $isHospitalAdmin ? $currentHospitalId : ($_POST['hospital_id'] ?? $hospitalId);
     $serviceNames = $_POST['service_name'] ?? [];
     $serviceSchedules = $_POST['service_schedule'] ?? [];
@@ -220,6 +222,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $error = 'Không được chọn 2 khung giờ khám giống nhau.';
             }
             $bookingTimeSlotsJson = json_encode($bookingTimeSlots, JSON_UNESCAPED_UNICODE);
+        }
+        $plan = getHospitalSubscriptionPlan($db, $hospitalId);
+        $serviceLimit = hospitalPlanLimit($plan, 'service_limit');
+        $specialtyLimit = hospitalPlanLimit($plan, 'specialty_limit');
+        $newServiceCount = count(array_filter(array_map('trim', $serviceNames)));
+        if ($serviceLimit !== null && $newServiceCount > $serviceLimit) {
+            $error = hospitalPlanLimitMessage($plan, 'tối đa dịch vụ', $serviceLimit);
+        } elseif ($specialtyLimit !== null && count($specialtyNames) > $specialtyLimit) {
+            $error = hospitalPlanLimitMessage($plan, 'tối đa chuyên khoa', $specialtyLimit);
         }
         if (empty($error)) {
         $db->query("UPDATE hospitals SET booking_advance_days = :booking_advance_days, booking_time_slots = :booking_time_slots, booking_specialties = :booking_specialties, booking_flow = :booking_flow WHERE id = :hospital_id");

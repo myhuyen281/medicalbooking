@@ -32,7 +32,7 @@ if (isset($_GET['action'], $_GET['id']) && in_array($_GET['action'], ['approved'
     $msg = $_GET['action'] === 'approved' ? 'Đã duyệt tài khoản bệnh viện.' : 'Đã từ chối tài khoản bệnh viện.';
 }
 
-$db->query("SELECT u.id, u.full_name, u.email, u.phone, u.hospital_approval_status, u.created_at, h.name as hospital_name, h.facility_type, h.address
+$db->query("SELECT u.id, u.full_name, u.email, u.phone, u.hospital_approval_status, u.created_at, h.name as hospital_name, h.facility_type, h.address, h.subscription_plan, h.subscription_status, h.subscription_expires_at
             FROM users u
             LEFT JOIN hospitals h ON u.hospital_id = h.id
             WHERE u.role = 'hospital'
@@ -55,6 +55,7 @@ $hospitals = $db->resultSet();
                         <th class="ps-3">Bệnh viện</th>
                         <th>Liên hệ</th>
                         <th>Loại cơ sở</th>
+                        <th>Gói dịch vụ</th>
                         <th>Trạng thái</th>
                         <th>Ngày đăng ký</th>
                         <th class="text-center pe-3">Hành động</th>
@@ -73,6 +74,10 @@ $hospitals = $db->resultSet();
                                     <small><?php echo htmlspecialchars($hospital['phone']); ?></small>
                                 </td>
                                 <td><?php echo htmlspecialchars($facilityTypeLabels[$hospital['facility_type'] ?? ''] ?? 'Chưa phân loại'); ?></td>
+                                <td>
+                                    <div class="fw-semibold"><?php echo htmlspecialchars($hospital['subscription_plan'] ?? 'basic'); ?></div>
+                                    <small class="text-muted"><?php echo htmlspecialchars($hospital['subscription_status'] ?? 'pending_payment'); ?><?php echo !empty($hospital['subscription_expires_at']) ? ' - hết hạn ' . date('d/m/Y', strtotime($hospital['subscription_expires_at'])) : ''; ?></small>
+                                </td>
                                 <td>
                                     <?php if ($hospital['hospital_approval_status'] === 'approved'): ?>
                                         <span class="badge bg-success">Đã duyệt</span>

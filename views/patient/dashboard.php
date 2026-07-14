@@ -1,5 +1,7 @@
 <?php
 require_once '../../config/database.php';
+require_once '../../controllers/RefundController.php';
+require_once '../../controllers/MedicalResultController.php';
 $base_url = 'http://' . $_SERVER['HTTP_HOST'] . '/MEDICAILBOOKING';
 
 session_start();
@@ -12,31 +14,22 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'patient') {
 
 $db = new Database();
 $userId = $_SESSION['user_id'];
+$medicalResultController = new MedicalResultController();
+$db->query("UPDATE appointments SET status = 'confirmed' WHERE patient_id = :pid AND status = 'pending'");
+$db->bind(':pid', $userId);
+$db->execute();
 
 // Handle Patient Cancellation
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] === 'cancel') {
     $apptId = $_POST['appointment_id'];
 
-    // Verify this appointment belongs to the logged-in patient and is cancelable (pending or confirmed)
-    $db->query("SELECT status FROM appointments WHERE id = :id AND patient_id = :pid");
-    $db->bind(':id', $apptId);
-    $db->bind(':pid', $userId);
-    $currentStore = $db->single();
+    $refundController = new RefundController();
+    $cancelResult = $refundController->cancelAppointment($apptId, 'patient', 'Khách hàng hủy lịch khám', $userId);
 
-    if ($currentStore && ($currentStore['status'] == 'pending' || $currentStore['status'] == 'confirmed')) {
-        $db->query("UPDATE appointments SET status = 'cancelled' WHERE id = :id");
-        $db->bind(':id', $apptId);
-        $db->execute();
-
-        // Release the schedule
-        $db->query("UPDATE schedules s 
-                    INNER JOIN appointments a ON s.id = a.schedule_id 
-                    SET s.status = 'available' 
-                    WHERE a.id = :aid");
-        $db->bind(':aid', $apptId);
-        $db->execute();
-
-        $success = "Bạn đã hủy lịch khám thành công.";
+    if ($cancelResult['success']) {
+        $success = $cancelResult['message'];
+    } else {
+        $success = $cancelResult['message'];
     }
 }
 
@@ -68,13 +61,23 @@ $db->query("
            d.id as doctor_id,
            u_doc.full_name as doctor_name, 
            spec.name as specialty_name,
+           h.name as hospital_name,
            s.work_date, s.start_time, s.end_time,
-           d.consultation_fee
+           d.consultation_fee,
+           mr.id AS result_id,
+           mr.diagnosis,
+           mr.conclusion,
+           mr.prescription,
+           mr.note,
+           mr.re_exam_date,
+           mr.pdf_file
     FROM appointments a
     INNER JOIN schedules s ON a.schedule_id = s.id
     INNER JOIN doctors d ON a.doctor_id = d.id
-    INNER JOIN users u_doc ON d.user_id = u_doc.id
-    INNER JOIN specialties spec ON d.specialty_id = spec.id
+    LEFT JOIN users u_doc ON d.user_id = u_doc.id
+    LEFT JOIN specialties spec ON d.specialty_id = spec.id
+    LEFT JOIN hospitals h ON d.hospital_id = h.id
+    LEFT JOIN medical_results mr ON mr.appointment_id = a.id
     WHERE a.patient_id = :pid
     ORDER BY s.work_date DESC, s.start_time DESC
 ");
@@ -89,6 +92,7 @@ $appointments = $db->resultSet();
     <title>Bảng Điều Khiển Patient - Đặt Lịch Khám</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="<?php echo $base_url; ?>/public/css/medical-results.css">
     <style>
         body { background-color: #f4f6f9; }
         .sidebar { background-color: #2b3a4a; min-height: 100vh; color: white; }
@@ -99,6 +103,7 @@ $appointments = $db->resultSet();
         .status-badge { font-size: 13px; padding: 5px 10px; border-radius: 20px; font-weight: 500;}
         .pending { background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba;}
         .confirmed { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb;}
+        .examining { background-color: #cfe2ff; color: #084298; border: 1px solid #b6d4fe;}
         .completed { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb;}
         .cancelled { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb;}
     </style>
@@ -216,9 +221,10 @@ $appointments = $db->resultSet();
                                                         $statusClass = '';
                                                         $statusText = '';
                                                         switch($appt['status']) {
-                                                            case 'pending': $statusClass = 'pending'; $statusText = 'Chờ BS duyệt'; break;
-                                                            case 'confirmed': $statusClass = 'confirmed'; $statusText = 'Đã chốt lịch'; break;
-                                                            case 'completed': $statusClass = 'completed'; $statusText = 'Đã khám xong'; break;
+                                                            case 'pending': $statusClass = 'pending'; $statusText = 'Chờ xác nhận'; break;
+                                                            case 'confirmed': $statusClass = 'confirmed'; $statusText = 'Đã xác nhận'; break;
+                                                            case 'examining': $statusClass = 'examining'; $statusText = 'Đang khám'; break;
+                                                            case 'completed': $statusClass = 'completed'; $statusText = 'Hoàn thành'; break;
                                                             case 'cancelled': $statusClass = 'cancelled'; $statusText = 'Đã hủy'; break;
                                                         }
                                                     ?>
@@ -232,8 +238,38 @@ $appointments = $db->resultSet();
                                                             <button type="submit" name="action" value="cancel" class="btn btn-sm btn-outline-danger" onclick="return confirm('Bạn thực sự muốn hủy lịch khám này? Các bác sĩ sẽ nhận được thông báo.');">Hủy lịch</button>
                                                         </form>
                                                     <?php elseif($appt['status'] == 'completed'): ?>
-                                                        <!-- Đã khám xong thì có thể Review -->
-                                                        <button type="button" class="btn btn-sm btn-warning text-dark" data-bs-toggle="modal" data-bs-target="#reviewModal<?php echo $appt['id']; ?>"><i class="bi bi-star"></i> Đánh giá</button>
+                                                        <button type="button" class="btn btn-sm btn-info text-white mb-1" data-bs-toggle="modal" data-bs-target="#resultModal<?php echo $appt['id']; ?>"><i class="bi bi-file-earmark-medical"></i> Xem kết quả khám</button>
+                                                        <button type="button" class="btn btn-sm btn-warning text-dark mb-1" data-bs-toggle="modal" data-bs-target="#reviewModal<?php echo $appt['id']; ?>"><i class="bi bi-star"></i> Đánh giá</button>
+
+                                                        <div class="modal fade" id="resultModal<?php echo $appt['id']; ?>" tabindex="-1" aria-hidden="true">
+                                                            <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+                                                                <div class="modal-content text-start border-0 rounded-4">
+                                                                    <div class="modal-header bg-info text-white rounded-top-4">
+                                                                        <h5 class="modal-title fw-bold"><i class="bi bi-file-earmark-medical me-2"></i>Kết quả khám bệnh</h5>
+                                                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                                    </div>
+                                                                    <div class="modal-body p-4">
+                                                                        <div class="row g-3 mb-3">
+                                                                            <div class="col-md-6"><strong>Bệnh viện:</strong><br><?php echo htmlspecialchars($appt['hospital_name'] ?? 'Cơ sở y tế'); ?></div>
+                                                                            <div class="col-md-6"><strong>Bác sĩ:</strong><br><?php echo htmlspecialchars($appt['doctor_name'] ?? ''); ?></div>
+                                                                            <div class="col-md-6"><strong>Ngày khám:</strong><br><?php echo date('d/m/Y', strtotime($appt['work_date'])); ?></div>
+                                                                        </div>
+                                                                        <?php if (!empty($appt['result_id'])): ?>
+                                                                            <div class="medical-result-section"><h6>Chẩn đoán</h6><div><?php echo nl2br(htmlspecialchars($appt['diagnosis'])); ?></div></div>
+                                                                            <div class="medical-result-section"><h6>Kết luận</h6><div><?php echo nl2br(htmlspecialchars($appt['conclusion'])); ?></div></div>
+                                                                            <div class="medical-result-section"><h6>Đơn thuốc</h6><div><?php echo nl2br(htmlspecialchars($appt['prescription'])); ?></div></div>
+                                                                            <div class="medical-result-section"><h6>Ghi chú</h6><div><?php echo nl2br(htmlspecialchars($appt['note'] ?: 'Không có')); ?></div></div>
+                                                                            <div class="medical-result-section"><h6>Ngày tái khám</h6><div><?php echo !empty($appt['re_exam_date']) ? date('d/m/Y', strtotime($appt['re_exam_date'])) : 'Không có'; ?></div></div>
+                                                                            <?php if (!empty($appt['pdf_file'])): ?>
+                                                                                <a href="<?php echo $base_url . '/' . htmlspecialchars($appt['pdf_file']); ?>" target="_blank" class="btn btn-primary"><i class="bi bi-download me-1"></i>Tải kết quả</a>
+                                                                            <?php endif; ?>
+                                                                        <?php else: ?>
+                                                                            <div class="alert alert-warning mb-0">Bệnh viện chưa cập nhật kết quả khám.</div>
+                                                                        <?php endif; ?>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
 
                                                         <!-- Modal Đánh giá -->
                                                         <div class="modal fade" id="reviewModal<?php echo $appt['id']; ?>" tabindex="-1" aria-labelledby="reviewLabel" aria-hidden="true">

@@ -5,7 +5,15 @@ include 'includes/header.php';
 $db = new Database();
 
 // Lấy tổng số bệnh nhân
-$db->query("SELECT COUNT(*) as count FROM users WHERE role = 'patient'");
+if ($isHospitalAdmin) {
+    $db->query("SELECT COUNT(DISTINCT a.patient_id) as count
+                FROM appointments a
+                INNER JOIN doctors d ON a.doctor_id = d.id
+                WHERE d.hospital_id = :hospital_id");
+    $db->bind(':hospital_id', $currentHospitalId);
+} else {
+    $db->query("SELECT COUNT(*) as count FROM users WHERE role = 'patient'");
+}
 $patientsCount = $db->single()['count'];
 
 $doctorScope = $isHospitalAdmin ? " WHERE hospital_id = :hospital_id" : "";
@@ -167,8 +175,8 @@ $totalRevenue = $db->single()['total_revenue'] ?? 0;
                                     </td>
                                     <td class="pe-4 text-center">
                                         <?php 
-                                            if($appt['status'] == 'pending') echo '<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Chờ duyệt</span>';
-                                            elseif($appt['status'] == 'confirmed') echo '<span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>Đã chốt</span>';
+                                            if($appt['status'] == 'pending') echo '<span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>Đặt thành công</span>';
+                                            elseif($appt['status'] == 'confirmed') echo '<span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>Đặt thành công</span>';
                                             elseif($appt['status'] == 'completed') echo '<span class="badge bg-info text-dark"><i class="bi bi-heart-pulse-fill me-1"></i>Đã khám</span>';
                                             elseif($appt['status'] == 'cancelled') echo '<span class="badge bg-danger"><i class="bi bi-x-circle-fill me-1"></i>Đã hủy</span>';
                                         ?>

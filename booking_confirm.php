@@ -18,6 +18,7 @@ $bookingPrice = trim($_GET['booking_price'] ?? '');
 $patientName = trim($_GET['patient_name'] ?? '');
 $patientPhone = trim($_GET['patient_phone'] ?? '');
 $patientDob = trim($_GET['patient_dob'] ?? '');
+$paymentMethod = strtolower(trim($_GET['payment_method'] ?? ''));
 
 if ($bookingService === '' && isset($_GET['service'])) {
     $bookingService = trim($_GET['service']);
@@ -98,7 +99,7 @@ $backUrl = 'booking_patient.php?' . http_build_query(array_diff_key($_GET, array
                     <div id="paymentConfirmSection" class="mt-3 p-3" style="background:#f5f5f5;">
                         <div class="mb-2">Chọn phương thức thanh toán</div>
                         <button type="button" class="btn bg-white w-100 text-start border border-info rounded-3 p-3 d-flex align-items-center justify-content-between" data-bs-toggle="modal" data-bs-target="#paymentMethodModal">
-                            <span><i id="selectedPaymentIcon" class="bi bi-wallet2 text-info fs-5 me-2"></i><span id="selectedPaymentText">Thanh Toán Tại Cơ Sở Y Tế</span></span>
+                            <span><i id="selectedPaymentIcon" class="bi <?php echo $paymentMethod === 'vnpay' ? 'bi-credit-card' : 'bi-wallet2'; ?> text-info fs-5 me-2"></i><span id="selectedPaymentText"><?php echo $paymentMethod === 'vnpay' ? 'Thanh toán VNPAYThanh toán bằng ngân hàng, thẻ ATM, QR Pay' : 'Thanh Toán Tại Cơ Sở Y Tế'; ?></span></span>
                             <i class="bi bi-chevron-right text-info"></i>
                         </button>
                         <div class="row align-items-center mt-3">
@@ -164,7 +165,7 @@ $backUrl = 'booking_patient.php?' . http_build_query(array_diff_key($_GET, array
 <script>
 let selectedPaymentMethod = '';
 let selectedPaymentIcon = '';
-let isVnpay = false;
+let isVnpay = <?php echo json_encode($paymentMethod === 'vnpay'); ?>;
 
 function selectPaymentMethod(selectedButton) {
     document.querySelectorAll('.payment-method-option').forEach(button => {
@@ -186,6 +187,14 @@ function selectPaymentMethod(selectedButton) {
 function confirmPaymentMethodSelection() {
     document.getElementById('selectedPaymentText').textContent = selectedPaymentMethod;
     document.getElementById('selectedPaymentIcon').className = selectedPaymentIcon + ' me-2';
+
+    const params = new URLSearchParams(window.location.search);
+    if (isVnpay) {
+        params.set('payment_method', 'vnpay');
+    } else {
+        params.set('payment_method', 'onsite');
+    }
+    window.history.replaceState({}, '', window.location.pathname + '?' + params.toString());
 }
 
 function showPaymentNotice() {

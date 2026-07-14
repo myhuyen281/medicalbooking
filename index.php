@@ -14,6 +14,21 @@ try {
 }
 
 try {
+    $db->query("SELECT r.rating, r.comment, r.created_at, u.full_name, h.name AS hospital_name, pp.avatar_url
+                FROM reviews r
+                INNER JOIN users u ON u.id = r.patient_id
+                LEFT JOIN patient_profiles pp ON pp.user_id = u.id
+                INNER JOIN doctors d ON d.id = r.doctor_id
+                INNER JOIN hospitals h ON h.id = d.hospital_id
+                WHERE TRIM(COALESCE(r.comment, '')) <> ''
+                ORDER BY r.created_at DESC, r.id DESC
+                LIMIT 8");
+    $customerReviews = $db->resultSet();
+} catch (Exception $e) {
+    $customerReviews = [];
+}
+
+try {
     $db->query("SELECT DISTINCT h.*
                 FROM hospitals h
                 LEFT JOIN users u ON u.hospital_id = h.id AND u.role = 'hospital'
@@ -344,7 +359,7 @@ function homepageNewsDate($post) {
 <!-- Quick Actions -->
 <div class="position-relative mb-5 container mx-auto px-4 px-md-5" style="margin-top: -54px; z-index: 3;">
     <!-- Left Button -->
-    <button class="btn btn-white rounded-circle shadow position-absolute top-50 start-0 translate-middle-y z-3 d-none d-md-flex align-items-center justify-content-center bg-white" style="width: 45px; height: 45px; border: 1px solid #e0e0e0;" onclick="document.getElementById('quickActionsScroll').scrollBy({left: -350, behavior: 'smooth'})">
+    <button class="btn btn-white rounded-circle shadow position-absolute top-50 start-0 translate-middle-y z-3 d-none d-md-flex align-items-center justify-content-center bg-white" style="width: 45px; height: 45px; border: 1px solid #e0e0e0;" onclick="document.getElementById('quickActionsScroll').scrollTo({left: 0, behavior: 'smooth'})">
         <i class="bi bi-chevron-left text-dark"></i>
     </button>
 
@@ -451,7 +466,7 @@ function homepageNewsDate($post) {
     </div>
 
     <!-- Right Button -->
-    <button class="btn btn-white rounded-circle shadow position-absolute top-50 end-0 translate-middle-y z-3 d-none d-md-flex align-items-center justify-content-center bg-white" style="width: 45px; height: 45px; border: 1px solid #e0e0e0;" onclick="document.getElementById('quickActionsScroll').scrollBy({left: 350, behavior: 'smooth'})">
+    <button class="btn btn-white rounded-circle shadow position-absolute top-50 end-0 translate-middle-y z-3 d-none d-md-flex align-items-center justify-content-center bg-white" style="width: 45px; height: 45px; border: 1px solid #e0e0e0;" onclick="document.getElementById('quickActionsScroll').scrollTo({left: document.getElementById('quickActionsScroll').scrollWidth, behavior: 'smooth'})">
         <i class="bi bi-chevron-right text-dark"></i>
     </button>
 </div>
@@ -503,7 +518,7 @@ function homepageNewsDate($post) {
         </div>
 
         <!-- Right Button -->
-        <button class="btn btn-white rounded-circle shadow position-absolute top-50 end-0 translate-middle-y z-3 d-none d-md-flex align-items-center justify-content-center bg-white me-3" style="width: 40px; height: 40px; border: 1px solid #e0e0e0;" onclick="document.getElementById('partnersScroll').scrollBy({left: 350, behavior: 'smooth'})">
+        <button class="btn btn-white rounded-circle shadow position-absolute top-50 end-0 translate-middle-y z-3 d-none d-md-flex align-items-center justify-content-center bg-white me-3" style="width: 40px; height: 40px; border: 1px solid #e0e0e0;" onclick="document.getElementById('partnersScroll').scrollBy({left: 850, behavior: 'smooth'})">
             <i class="bi bi-chevron-right text-dark"></i>
         </button>
     </div>
@@ -983,77 +998,35 @@ document.querySelectorAll('.specialty-hover').forEach(function (link) {
     </button>
 
     <div id="testimonialScroll" class="d-flex overflow-auto flex-nowrap py-3 px-2 scrollbar-hide gap-4 w-100" style="scroll-behavior: smooth;">
-        <!-- Card 1 -->
-        <div class="flex-shrink-0" style="width: 380px;">
-            <div class="card shadow-sm h-100 border-0 rounded-4 d-flex flex-column p-4" style="background-color: #f4f6f9;">
-                <div class="text-center mb-3">
-                    <i class="bi bi-quote" style="font-size: 3rem; color: #d1d5db; opacity: 0.7;"></i>
+        <?php if (!empty($customerReviews)): ?>
+            <?php foreach ($customerReviews as $review): ?>
+                <div class="flex-shrink-0" style="width: 380px;">
+                    <div class="card shadow-sm h-100 border-0 rounded-4 d-flex flex-column p-4" style="background-color: #f4f6f9;">
+                        <div class="text-center mb-2">
+                            <i class="bi bi-quote" style="font-size: 3rem; color: #d1d5db; opacity: 0.7;"></i>
+                        </div>
+                        <div class="text-center text-warning mb-3"><?php echo str_repeat('★', (int)$review['rating']) . str_repeat('☆', 5 - (int)$review['rating']); ?></div>
+                        <p class="text-center text-dark text-opacity-75 fw-medium mb-4 flex-grow-1" style="font-size: 0.95rem; line-height: 1.6;"><?php echo nl2br(htmlspecialchars($review['comment'])); ?></p>
+                        <hr class="border-secondary opacity-25 mx-4">
+                        <div class="text-center mt-2">
+                            <?php if (!empty($review['avatar_url'])): ?>
+                                <img src="<?php echo htmlspecialchars($base_url . '/' . ltrim($review['avatar_url'], '/')); ?>" alt="<?php echo htmlspecialchars($review['full_name']); ?>" class="rounded-circle mb-2" style="width: 56px; height: 56px; object-fit: cover;">
+                            <?php else: ?>
+                                <div class="rounded-circle d-inline-flex align-items-center justify-content-center mb-2 fw-bold text-white" style="width: 56px; height: 56px; background-color: #00a8e8;"><?php echo htmlspecialchars(strtoupper(substr($review['full_name'], 0, 1))); ?></div>
+                            <?php endif; ?>
+                            <h6 class="mb-1 fw-bold" style="color: #023f6d;"><?php echo htmlspecialchars($review['full_name']); ?></h6>
+                            <small class="text-muted"><?php echo htmlspecialchars($review['hospital_name']); ?></small>
+                        </div>
+                    </div>
                 </div>
-                <p class="text-center text-dark text-opacity-75 fw-medium mb-4 flex-grow-1" style="font-size: 0.95rem; line-height: 1.6;">
-                    Đặt lịch xét nghiệm bên này rất gọn, có ngày giờ cụ thể luôn lên là được xét nghiệm liền không rườm rà gì mấy. An tâm đặt cho gia đình, có cả xét nghiệm tận nhà, không mất thời gian.
-                </p>
-                <hr class="border-secondary opacity-25 mx-4">
-                <div class="d-flex align-items-center justify-content-center mt-2">
-                    <img src="https://medpro.vn/_next/image?url=https%3A%2F%2Fcdn.medpro.vn%2Fmedpro-production%2Fdefault%2Favatar_nam.png&w=256&q=75" class="rounded-circle me-3" style="width: 40px; height: 40px; object-fit: cover;" alt="Nhân Nguyễn">
-                    <h6 class="mb-0 fw-bold" style="color: #023f6d;">Nhân Nguyễn</h6>
-                </div>
-            </div>
-        </div>
-
-        <!-- Card 2 -->
-        <div class="flex-shrink-0" style="width: 380px;">
-            <div class="card shadow-sm h-100 border-0 rounded-4 d-flex flex-column p-4" style="background-color: #f4f6f9;">
-                <div class="text-center mb-3">
-                    <i class="bi bi-quote" style="font-size: 3rem; color: #d1d5db; opacity: 0.7;"></i>
-                </div>
-                <p class="text-center text-dark text-opacity-75 fw-medium mb-4 flex-grow-1" style="font-size: 0.95rem; line-height: 1.6;">
-                    Dịch vụ đặt lịch khám tiện thật. Mình chọn được bệnh viện, ngày giờ khám trước nên không phải chờ đợi lâu. Thông tin rõ ràng, thao tác nhanh và rất dễ sử dụng.
-                </p>
-                <hr class="border-secondary opacity-25 mx-4">
-                <div class="d-flex align-items-center justify-content-center mt-2">
-                    <img src="https://medpro.vn/_next/image?url=https%3A%2F%2Fcdn.medpro.vn%2Fmedpro-production%2Fdefault%2Favatar_nu.png&w=256&q=75" class="rounded-circle me-3" style="width: 40px; height: 40px; object-fit: cover;" alt="Mai Vy">
-                    <h6 class="mb-0 fw-bold" style="color: #023f6d;">Mai Vy</h6>
-                </div>
-            </div>
-        </div>
-
-        <!-- Card 3 -->
-        <div class="flex-shrink-0" style="width: 380px;">
-            <div class="card shadow-sm h-100 border-0 rounded-4 d-flex flex-column p-4" style="background-color: #f4f6f9;">
-                <div class="text-center mb-3">
-                    <i class="bi bi-quote" style="font-size: 3rem; color: #d1d5db; opacity: 0.7;"></i>
-                </div>
-                <p class="text-center text-dark text-opacity-75 fw-medium mb-4 flex-grow-1" style="font-size: 0.95rem; line-height: 1.6;">
-                    Lần đầu tải trang web về xài, thấy dễ và rất tiện lợi. Đi làm bận rộn như mình đặt trước ở đây có chọn ngày giờ thì khỏi mất thời gian tới xếp hàng đợi ở bệnh viện. Chưa kể có thể lấy số đặt khám tại các bệnh viện như Y Dược 1 2 3, Da liễu, Mắt TPHCM...
-                </p>
-                <hr class="border-secondary opacity-25 mx-4">
-                <div class="d-flex align-items-center justify-content-center mt-2">
-                    <img src="https://medpro.vn/_next/image?url=https%3A%2F%2Fcdn.medpro.vn%2Fmedpro-production%2Fdefault%2Favatar_nu.png&w=256&q=75" class="rounded-circle me-3" style="width: 40px; height: 40px; object-fit: cover;" alt="Mộc Trà">
-                    <h6 class="mb-0 fw-bold" style="color: #023f6d;">Mộc Trà</h6>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Card 4 -->
-        <div class="flex-shrink-0" style="width: 380px;">
-            <div class="card shadow-sm h-100 border-0 rounded-4 d-flex flex-column p-4" style="background-color: #f4f6f9;">
-                <div class="text-center mb-3">
-                    <i class="bi bi-quote" style="font-size: 3rem; color: #d1d5db; opacity: 0.7;"></i>
-                </div>
-                <p class="text-center text-dark text-opacity-75 fw-medium mb-4 flex-grow-1" style="font-size: 0.95rem; line-height: 1.6;">
-                    Tôi đã sử dụng chức năng đặt lịch xét nghiệm cho con, rất nhanh chóng và tiện lợi. Bác sĩ hỗ trợ tư vấn rất kỹ, không phải chờ đợi lâu. Sẽ tiếp tục ủng hộ nền tảng này!
-                </p>
-                <hr class="border-secondary opacity-25 mx-4">
-                <div class="d-flex align-items-center justify-content-center mt-2">
-                    <img src="https://medpro.vn/_next/image?url=https%3A%2F%2Fcdn.medpro.vn%2Fmedpro-production%2Fdefault%2Favatar_nu.png&w=256&q=75" class="rounded-circle me-3" style="width: 40px; height: 40px; object-fit: cover;" alt="Thanh Thảo">
-                    <h6 class="mb-0 fw-bold" style="color: #023f6d;">Thanh Thảo</h6>
-                </div>
-            </div>
-        </div>
+            <?php endforeach; ?>
+        <?php else: ?>
+            <div class="w-100 text-center text-muted py-5">Chưa có đánh giá từ khách hàng.</div>
+        <?php endif; ?>
     </div>
 
     <!-- Right Button -->
-    <button class="btn btn-white rounded-circle shadow position-absolute top-50 end-0 translate-middle-y z-3 d-none d-md-flex align-items-center justify-content-center bg-white me-3" style="width: 45px; height: 45px; border: 1px solid #e0e0e0; margin-top: 15px;" onclick="document.getElementById('testimonialScroll').scrollBy({left: 350, behavior: 'smooth'})">
+    <button class="btn btn-white rounded-circle shadow position-absolute top-50 end-0 translate-middle-y z-3 d-none d-md-flex align-items-center justify-content-center bg-white me-3" style="width: 45px; height: 45px; border: 1px solid #e0e0e0; margin-top: 15px;" onclick="document.getElementById('testimonialScroll').scrollBy({left: 850, behavior: 'smooth'})">
         <i class="bi bi-chevron-right text-dark"></i>
     </button>
 </div>

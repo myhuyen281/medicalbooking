@@ -1,0 +1,27 @@
+.refund-status-card {
+    border-left: 4px solid #00b5f1;
+}
+
+.refund-table th,
+.refund-table td {
+    vertical-align: middle;
+}
+
+.refund-money {
+    color: #dc2626;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.refund-rate {
+    min-width: 58px;
+}
+
+.refund-reason {
+    max-width: 260px;
+    white-space: normal;
+}
+
+.refund-action-form {
+    display: inline-block;
+}

@@ -156,7 +156,9 @@ for ($hour = 13; $hour <= 17; $hour++) {
     }
 }
 $afternoonTimeOptions['18:00'] = '18:00';
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
+if ($_SERVER["REQUEST_METHOD"] == "POST" && $isHospitalAdmin && !$currentHospitalSubscriptionActive) {
+    $error = hospitalSubscriptionExpiredMessage();
+} elseif ($_SERVER["REQUEST_METHOD"] == "POST") {
     $hospitalId = $isHospitalAdmin ? $currentHospitalId : ($_POST['hospital_id'] ?? $hospitalId);
     $doctorName = trim($_POST['doctor_name'] ?? '');
     $selectedDates = [];
@@ -214,12 +216,41 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     } elseif (empty($doctorName) || empty($hospitalId) || empty($selectedDates) || empty($timeSlots)) {
         $error = "Vui lòng nhập đầy đủ thông tin.";
     } else {
+        $plan = getHospitalSubscriptionPlan($db, $hospitalId);
+        $dailyScheduleLimit = hospitalPlanLimit($plan, 'daily_schedule_limit');
+        if ($dailyScheduleLimit !== null) {
+            $requestedByDate = [];
+            foreach ($selectedDates as $selectedDate) {
+                $requestedByDate[$selectedDate] = ($requestedByDate[$selectedDate] ?? 0) + count($timeSlots);
+            }
+            foreach ($requestedByDate as $date => $requestedCount) {
+                if ($requestedCount > $dailyScheduleLimit) {
+                    $error = hospitalPlanLimitMessage($plan, 'tối đa lịch khám/ngày', $dailyScheduleLimit);
+                    break;
+                }
+            }
+        }
+    }
+
+    if (empty($error)) {
         $db->query("SELECT d.id FROM doctors d INNER JOIN users u ON d.user_id = u.id WHERE d.hospital_id = :hospital_id AND u.full_name = :doctor_name LIMIT 1");
         $db->bind(':hospital_id', (int)$hospitalId);
         $db->bind(':doctor_name', $doctorName);
         $doctor = $db->single();
 
         if (!$doctor) {
+            $doctorLimit = hospitalPlanLimit($plan, 'doctor_limit');
+            if ($doctorLimit !== null) {
+                $db->query("SELECT COUNT(*) AS total FROM doctors WHERE hospital_id = :hospital_id");
+                $db->bind(':hospital_id', (int)$hospitalId);
+                $doctorCount = (int)($db->single()['total'] ?? 0);
+                if ($doctorCount >= $doctorLimit) {
+                    $error = hospitalPlanLimitMessage($plan, 'tối đa bác sĩ', $doctorLimit);
+                }
+            }
+        }
+
+        if (!$doctor && empty($error)) {
             $db->query("SELECT hs.specialty_id
                         FROM hospital_specialties hs
                         LEFT JOIN specialties sp ON sp.id = hs.specialty_id

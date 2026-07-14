@@ -119,7 +119,9 @@ if (!$hospitalId && $isSystemAdmin) {
     $hospitalId = $firstHospital['id'] ?? null;
 }
 
-if (isset($_GET['delete'], $_GET['id']) && $hospitalId) {
+if (isset($_GET['delete'], $_GET['id']) && $hospitalId && $isHospitalAdmin && !$currentHospitalSubscriptionActive) {
+    $error = hospitalSubscriptionExpiredMessage();
+} elseif (isset($_GET['delete'], $_GET['id']) && $hospitalId) {
     $db->query("DELETE lps FROM lab_package_services lps INNER JOIN lab_packages lp ON lp.id = lps.package_id WHERE lp.id = :id AND lp.hospital_id = :hospital_id");
     $db->bind(':id', (int)$_GET['id']);
     $db->bind(':hospital_id', $hospitalId);
@@ -131,7 +133,9 @@ if (isset($_GET['delete'], $_GET['id']) && $hospitalId) {
     $success = 'Đã xóa ' . mb_strtolower($cfg['title']) . '.';
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isHospitalAdmin && !$currentHospitalSubscriptionActive) {
+    $error = hospitalSubscriptionExpiredMessage();
+} elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $hospitalId = $isHospitalAdmin ? $currentHospitalId : ($_POST['hospital_id'] ?? $hospitalId);
     $name = trim($_POST['name'] ?? '');
     $price = 0;
@@ -167,6 +171,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($hospitalId)) {
         $error = 'Vui lòng chọn bệnh viện.';
+    } elseif ($isHospitalAdmin && !hospitalPlanAllows(getHospitalSubscriptionPlan($db, $hospitalId), 'lab_packages')) {
+        $error = 'Gói hiện tại chưa hỗ trợ quản lý gói xét nghiệm. Vui lòng nâng cấp lên Gói Nâng Cao hoặc Premium.';
     } elseif ($name === '' && !$updatedExistingIcon) {
         $error = 'Vui lòng nhập tên gói.';
     } elseif ($name !== '') {

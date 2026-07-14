@@ -54,7 +54,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($schedule) && $schedule['statu
 
         // Thêm bản ghi vào Appointments (Lịch hẹn)
  $db->query("INSERT INTO appointments (patient_id, doctor_id, schedule_id, symptoms, status) 
- VALUES (:pid, :did, :sid, :symptoms, 'pending')");
+ VALUES (:pid, :did, :sid, :symptoms, 'confirmed')");
  $db->bind(':pid', $patientId);
  $db->bind(':did', $schedule['doctor_id']);
  $db->bind(':sid', $scheduleId);

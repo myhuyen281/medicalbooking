@@ -1,0 +1,45 @@
+.medical-result-modal .form-label {
+    font-weight: 700;
+    color: #023f6d;
+}
+
+.medical-result-modal .modal-content {
+    max-height: calc(100vh - 1rem);
+    overflow: hidden;
+}
+
+.medical-result-modal .medical-result-form {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.medical-result-modal .modal-body {
+    overflow-y: auto;
+}
+
+.medical-result-modal .modal-footer {
+    flex-shrink: 0;
+    background: #fff;
+    border-top: 1px solid #dee2e6 !important;
+}
+
+.medical-result-card {
+    border: 1px solid #e5eef7;
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(2, 63, 109, 0.08);
+}
+
+.medical-result-section {
+    background: #f8fbff;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 14px;
+}
+
+.medical-result-section h6 {
+    color: #00a8e8;
+    font-weight: 800;
+}

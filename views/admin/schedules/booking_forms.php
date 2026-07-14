@@ -62,7 +62,9 @@ if (!$hospitalId && $isSystemAdmin) {
     $hospitalId = $firstHospital['id'] ?? null;
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isHospitalAdmin && !$currentHospitalSubscriptionActive) {
+    $error = hospitalSubscriptionExpiredMessage();
+} elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $hospitalId = $isHospitalAdmin ? $currentHospitalId : ($_POST['hospital_id'] ?? $hospitalId);
     $formIds = $_POST['form_id'] ?? [];
     $formNames = $_POST['form_name'] ?? [];
@@ -71,6 +73,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($hospitalId)) {
         $error = 'Vui lòng chọn bệnh viện.';
+    } elseif ($isHospitalAdmin && !hospitalPlanAllows(getHospitalSubscriptionPlan($db, $hospitalId), 'booking_forms')) {
+        $error = 'Gói hiện tại chưa hỗ trợ quản lý biểu mẫu đặt lịch. Vui lòng nâng cấp lên Gói Nâng Cao hoặc Premium.';
     } else {
         $db->query("SELECT id FROM hospital_booking_forms WHERE hospital_id = :hospital_id");
         $db->bind(':hospital_id', $hospitalId);

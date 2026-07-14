@@ -35,10 +35,16 @@ try {
         smoking TINYINT(1) DEFAULT 0,
         drinking_alcohol TINYINT(1) DEFAULT 0,
         exercise_frequency VARCHAR(50) NULL,
+        avatar_url VARCHAR(500) NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     )");
     $db->execute();
+    $db->query("SHOW COLUMNS FROM patient_profiles LIKE 'avatar_url'");
+    if (!$db->single()) {
+        $db->query("ALTER TABLE patient_profiles ADD COLUMN avatar_url VARCHAR(500) NULL AFTER exercise_frequency");
+        $db->execute();
+    }
 } catch (Exception $e) {
 }
 
@@ -64,14 +70,37 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         'smoking' => isset($_POST['smoking']) ? 1 : 0,
         'drinking_alcohol' => isset($_POST['drinking_alcohol']) ? 1 : 0,
         'exercise_frequency' => $_POST['exercise_frequency'] ?: null,
+        'user_id' => $userId,
     ];
     
     // Check if profile exists
-    $db->query("SELECT id FROM patient_profiles WHERE user_id = :uid");
+    $db->query("SELECT id, avatar_url FROM patient_profiles WHERE user_id = :uid");
     $db->bind(':uid', $userId);
     $existing = $db->single();
+    $data['avatar_url'] = $existing['avatar_url'] ?? null;
+
+    if (!empty($_FILES['avatar_file']['name'])) {
+        $file = $_FILES['avatar_file'];
+        $allowedTypes = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
+        $mimeType = is_uploaded_file($file['tmp_name'] ?? '') ? mime_content_type($file['tmp_name']) : '';
+
+        if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || ($file['size'] ?? 0) <= 0 || ($file['size'] ?? 0) > 2 * 1024 * 1024 || !isset($allowedTypes[$mimeType])) {
+            $error = "Ảnh đại diện phải là JPG, PNG hoặc WebP và không vượt quá 2MB.";
+        } else {
+            $uploadDir = __DIR__ . '/../../uploads/patients/';
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0755, true);
+            }
+            $fileName = 'patient_' . $userId . '_' . bin2hex(random_bytes(8)) . '.' . $allowedTypes[$mimeType];
+            if (move_uploaded_file($file['tmp_name'], $uploadDir . $fileName)) {
+                $data['avatar_url'] = 'uploads/patients/' . $fileName;
+            } else {
+                $error = "Không thể lưu ảnh đại diện.";
+            }
+        }
+    }
     
-    if ($existing) {
+    if (!isset($error) && $existing) {
         // Update
         $sql = "UPDATE patient_profiles SET 
                 date_of_birth = :date_of_birth,
@@ -92,31 +121,32 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 medical_history = :medical_history,
                 smoking = :smoking,
                 drinking_alcohol = :drinking_alcohol,
-                exercise_frequency = :exercise_frequency
+                exercise_frequency = :exercise_frequency,
+                avatar_url = :avatar_url
                 WHERE user_id = :user_id";
-    } else {
+    } elseif (!isset($error)) {
         // Insert
         $sql = "INSERT INTO patient_profiles 
                 (user_id, date_of_birth, gender, identity_card, insurance_number, 
                  province, district, ward, address_detail, 
                  emergency_contact_name, emergency_contact_phone, emergency_contact_relationship,
                  blood_type, allergies, chronic_diseases, medications, medical_history,
-                 smoking, drinking_alcohol, exercise_frequency)
+                  smoking, drinking_alcohol, exercise_frequency, avatar_url)
                 VALUES (:user_id, :date_of_birth, :gender, :identity_card, :insurance_number,
                         :province, :district, :ward, :address_detail,
                         :emergency_contact_name, :emergency_contact_phone, :emergency_contact_relationship,
                         :blood_type, :allergies, :chronic_diseases, :medications, :medical_history,
-                        :smoking, :drinking_alcohol, :exercise_frequency)";
-        $data['user_id'] = $userId;
+                        :smoking, :drinking_alcohol, :exercise_frequency, :avatar_url)";
     }
     
-    $db->query($sql);
-    foreach ($data as $key => $value) {
-        $db->bind(':' . $key, $value);
+    if (!isset($error)) {
+        $db->query($sql);
+        foreach ($data as $key => $value) {
+            $db->bind(':' . $key, $value);
+        }
+        $db->execute();
+        $success = "Hồ sơ đã được lưu thành công!";
     }
-    $db->execute();
-    
-    $success = "Hồ sơ đã được lưu thành công!";
 }
 
 // Fetch user info
@@ -128,31 +158,14 @@ $user = $db->single();
 $db->query("SELECT * FROM patient_profiles WHERE user_id = :uid");
 $db->bind(':uid', $userId);
 $profile = $db->single() ?: [];
+include '../../includes/header.php';
 ?>
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hồ sơ Bệnh nhân - MedicailBooking</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            background-color: #f5f7fa; 
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            color: #1a1a1a;
-        }
-        
-        .mobile-container {
+<style>
+        .profile-page {
             width: 100%;
-            max-width: none;
+            max-width: 805px;
             margin: 0 auto;
-            background: #eaf7fc;
-            min-height: 100vh;
-            position: relative;
-            padding: 48px 0;
+            padding-bottom: 24px;
         }
         
         /* Header */
@@ -375,10 +388,9 @@ $profile = $db->single() ?: [];
             margin-bottom: 24px;
         }
         #profileForm {
-            max-width: 805px;
-            margin: 0 auto;
+            width: 100%;
         }
-        .profile-header, .stats-container, .sidebar, .d-flex > .mobile-container > a, .d-flex > .mobile-container > hr {
+        .profile-header, .stats-container, .menu-section {
             display: none !important;
         }
         .btn-save {
@@ -387,18 +399,8 @@ $profile = $db->single() ?: [];
             padding: 12px 24px;
             margin-top: 0;
         }
-    </style>
-</head>
-<body>
-    <div class="d-flex">
-        <!-- Mobile-style Container -->
-        <div class="mobile-container">
-            <a href="<?php echo $base_url; ?>/views/patient/dashboard.php"><i class="bi bi-person-lines-fill me-2"></i> Hồ sơ & Lịch khám</a>
-            <a href="<?php echo $base_url; ?>/views/patient/profile.php" class="active"><i class="bi bi-file-medical me-2"></i> Hồ sơ bệnh nhân</a>
-            <a href="<?php echo $base_url; ?>/doctors.php"><i class="bi bi-search me-2"></i> Đặt lịch hẹn mới</a>
-            <hr class="text-white mx-3 border-secondary">
-            <a href="<?php echo $base_url; ?>/views/auth/logout.php" class="text-danger mt-5"><i class="bi bi-box-arrow-right me-2"></i> Đăng xuất</a>
-        </div>
+</style>
+<div class="profile-page">
 
             <!-- Profile Header -->
             <div class="profile-header">
@@ -408,8 +410,12 @@ $profile = $db->single() ?: [];
                 <button class="edit-btn">
                     <i class="bi bi-pencil"></i>
                 </button>
-                <div class="profile-avatar">
-                    <?php echo strtoupper(substr($user['full_name'], 0, 1)); ?>
+                <div class="profile-avatar" style="overflow: hidden;">
+                    <?php if (!empty($profile['avatar_url'])): ?>
+                        <img src="<?php echo htmlspecialchars($base_url . '/' . ltrim($profile['avatar_url'], '/')); ?>" alt="<?php echo htmlspecialchars($user['full_name']); ?>" style="width: 100%; height: 100%; object-fit: cover;">
+                    <?php else: ?>
+                        <?php echo htmlspecialchars(strtoupper(substr($user['full_name'], 0, 1))); ?>
+                    <?php endif; ?>
                 </div>
                 <div class="profile-name"><?php echo htmlspecialchars($user['full_name']); ?></div>
                 <div class="profile-info">
@@ -435,6 +441,13 @@ $profile = $db->single() ?: [];
                     <div class="stat-label">Toa thuốc</div>
                 </div>
             </div>
+
+            <?php if (isset($error)): ?>
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <i class="bi bi-exclamation-circle-fill me-2"></i> <?php echo htmlspecialchars($error); ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            <?php endif; ?>
 
             <?php if (isset($success)): ?>
                 <div class="alert alert-success alert-dismissible fade show" role="alert">
@@ -505,11 +518,16 @@ $profile = $db->single() ?: [];
                 </a>
             </div>
 
-            <form method="POST" action="" id="profileForm">
+            <form method="POST" action="" id="profileForm" enctype="multipart/form-data">
                     <!-- Thông tin cơ bản -->
                     <div class="form-section collapse show" id="info-form">
                         <h6><i class="bi bi-person me-2"></i>Thông tin cơ bản</h6>
                         <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label">Ảnh đại diện</label>
+                                <input type="file" name="avatar_file" class="form-control" accept="image/jpeg,image/png,image/webp">
+                                <div class="form-text">JPG, PNG hoặc WebP, tối đa 2MB.</div>
+                            </div>
                             <div class="col-12">
                                 <label class="form-label">Họ và tên</label>
                                 <input type="text" class="form-control" value="<?php echo htmlspecialchars($user['full_name']); ?>" disabled>
@@ -659,11 +677,9 @@ $profile = $db->single() ?: [];
                         </button>
                     </div>
                 </form>
-            </div>
-        </div>
+</div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
+<script>
         // Auto close other sections when opening one
         document.querySelectorAll('.menu-item').forEach(item => {
             item.addEventListener('click', function(e) {
@@ -678,6 +694,5 @@ $profile = $db->single() ?: [];
                 }
             });
         });
-    </script>
-</body>
-</html>
+</script>
+<?php include '../../includes/footer.php'; ?>

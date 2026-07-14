@@ -48,7 +48,9 @@ $hospitals = $db->resultSet();
 $db->query("SELECT s.id, s.name, hs.hospital_id FROM specialties s INNER JOIN hospital_specialties hs ON s.id = hs.specialty_id ORDER BY s.name ASC");
 $specialties = $db->resultSet();
 
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
+if ($_SERVER["REQUEST_METHOD"] == "POST" && $isHospitalAdmin && !$currentHospitalSubscriptionActive) {
+    $error = hospitalSubscriptionExpiredMessage();
+} elseif ($_SERVER["REQUEST_METHOD"] == "POST") {
     $userId = $_POST['user_id'];
     $hospitalId = $_POST['hospital_id'];
     $specialtyId = $_POST['specialty_id'];
@@ -65,6 +67,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (empty($userId) || empty($hospitalId) || empty($specialtyId) || empty($fee)) {
         $error = "Vui lòng chọn User, bệnh viện, chuyên khoa và giá khám.";
     } else {
+        $plan = getHospitalSubscriptionPlan($db, $hospitalId);
+        $doctorLimit = hospitalPlanLimit($plan, 'doctor_limit');
+        if ($doctorLimit !== null) {
+            $db->query("SELECT COUNT(*) AS total FROM doctors WHERE hospital_id = :hospital_id");
+            $db->bind(':hospital_id', $hospitalId);
+            $doctorCount = (int)($db->single()['total'] ?? 0);
+            if ($doctorCount >= $doctorLimit) {
+                $error = hospitalPlanLimitMessage($plan, 'tối đa bác sĩ', $doctorLimit);
+            }
+        }
+    }
+
+    if (empty($error)) {
         $db->query("INSERT INTO doctors (user_id, hospital_id, specialty_id, experience_years, consultation_fee, description, doctor_image_url, treatment_text, academic_title, gender, display_schedule_text, display_price_text, approval_status) VALUES (:uid, :hid, :sid, :exp, :fee, :desc, :doctor_image_url, :treatment_text, :academic_title, :gender, :display_schedule_text, :display_price_text, 'approved')");
         $db->bind(':uid', $userId);
         $db->bind(':hid', $hospitalId);

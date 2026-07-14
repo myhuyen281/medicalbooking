@@ -8,6 +8,62 @@ if (session_status() === PHP_SESSION_NONE) {
 $base_url = 'http://' . $_SERVER['HTTP_HOST'] . '/MEDICAILBOOKING';
 $error = '';
 $success = '';
+$subscriptionPlans = [
+    'basic' => [
+        'name' => 'Gói Cơ Bản',
+        'price' => 299000,
+        'price_text' => '299.000 VNĐ/tháng',
+        'features' => [
+            'Phù hợp phòng khám nhỏ, phòng mạch tư',
+            '1 tài khoản quản lý',
+            'Tối đa 5 bác sĩ',
+            'Tối đa 10 lịch khám/ngày',
+            'Tối đa 10 dịch vụ',
+            'Tối đa 2 chuyên khoa',
+            'Quản lý đặt lịch',
+            'Quản lý hồ sơ bệnh nhân',
+            'Không hiển thị banner',
+            'Không thống kê nâng cao',
+            'Không gói xét nghiệm'
+        ]
+    ],
+    'advanced' => [
+        'name' => 'Gói Nâng Cao',
+        'price' => 699000,
+        'price_text' => '699.000 VNĐ/tháng',
+        'features' => [
+            'Phù hợp phòng khám đa khoa, trung tâm y tế',
+            'Bao gồm toàn bộ Gói Cơ Bản',
+            'Tối đa 20 bác sĩ',
+            'Không giới hạn lịch khám',
+            'Không giới hạn dịch vụ',
+            'Tối đa 10 chuyên khoa',
+            'Quản lý gói xét nghiệm',
+            'Banner bệnh viện',
+            'Thống kê lượt đặt lịch',
+            'Quản lý đánh giá',
+            'Quản lý biểu mẫu đặt lịch'
+        ]
+    ],
+    'premium' => [
+        'name' => 'Gói Premium',
+        'price' => 1299000,
+        'price_text' => '1.299.000 VNĐ/tháng',
+        'features' => [
+            'Phù hợp bệnh viện lớn, chuỗi phòng khám',
+            'Bao gồm toàn bộ Gói Nâng Cao',
+            'Không giới hạn bác sĩ',
+            'Không giới hạn chuyên khoa',
+            'Không giới hạn dịch vụ',
+            'Không giới hạn gói xét nghiệm',
+            'Ưu tiên hiển thị đầu trang tìm kiếm',
+            'Badge Đối tác Premium',
+            'Dashboard thống kê nâng cao',
+            'Xuất báo cáo Excel/PDF',
+            'Hỗ trợ ưu tiên 24/7'
+        ]
+    ]
+];
 
 function uploadHospitalRegisterImage($fieldName, $hospitalId, &$error) {
     if (empty($_FILES[$fieldName]['name'])) {
@@ -54,11 +110,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $phone = trim($_POST['phone']);
     $workingTime = '';
     $description = '';
+    $subscriptionPlan = $_POST['subscription_plan'] ?? '';
     $password = $_POST['password'];
     $confirmPassword = $_POST['confirm_password'];
 
-    if (empty($facilityCode) || empty($hospitalName) || empty($facilityType) || empty($email) || empty($phone) || empty($password) || empty($confirmPassword)) {
+    if (empty($facilityCode) || empty($hospitalName) || empty($facilityType) || empty($email) || empty($phone) || empty($subscriptionPlan) || empty($password) || empty($confirmPassword)) {
         $error = "Vui lòng nhập đầy đủ thông tin bắt buộc.";
+    } elseif (!in_array($subscriptionPlan, array_keys($subscriptionPlans), true)) {
+        $error = "Gói đăng ký không hợp lệ.";
     } elseif (!in_array($facilityType, $allowedFacilityTypes, true)) {
         $error = "Loại cơ sở y tế không hợp lệ.";
     } elseif ($password !== $confirmPassword) {
@@ -67,6 +126,31 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $db = new Database();
         try {
             $db->query("ALTER TABLE hospitals ADD COLUMN facility_type VARCHAR(30) NOT NULL DEFAULT 'public' AFTER facility_code");
+            $db->execute();
+        } catch (Exception $e) {
+        }
+        try {
+            $db->query("ALTER TABLE hospitals ADD COLUMN subscription_plan VARCHAR(30) NOT NULL DEFAULT 'basic' AFTER description");
+            $db->execute();
+        } catch (Exception $e) {
+        }
+        try {
+            $db->query("ALTER TABLE hospitals ADD COLUMN subscription_price INT NOT NULL DEFAULT 0 AFTER subscription_plan");
+            $db->execute();
+        } catch (Exception $e) {
+        }
+        try {
+            $db->query("ALTER TABLE hospitals ADD COLUMN subscription_status VARCHAR(30) NOT NULL DEFAULT 'pending_payment' AFTER subscription_price");
+            $db->execute();
+        } catch (Exception $e) {
+        }
+        try {
+            $db->query("ALTER TABLE hospitals ADD COLUMN subscription_started_at DATETIME NULL AFTER subscription_status");
+            $db->execute();
+        } catch (Exception $e) {
+        }
+        try {
+            $db->query("ALTER TABLE hospitals ADD COLUMN subscription_expires_at DATETIME NULL AFTER subscription_started_at");
             $db->execute();
         } catch (Exception $e) {
         }
@@ -85,7 +169,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             if ($db->rowCount() > 0) {
                 $error = "Mã cơ sở khám chữa bệnh đã tồn tại.";
             } else {
-            $db->query("INSERT INTO hospitals (facility_code, name, facility_type, address, phone, email, working_time, description) VALUES (:facility_code, :name, :facility_type, :address, :phone, :email, :working_time, :description)");
+            $selectedPlan = $subscriptionPlans[$subscriptionPlan];
+            $subscriptionStatus = 'pending_payment';
+            $db->query("INSERT INTO hospitals (facility_code, name, facility_type, address, phone, email, working_time, description, subscription_plan, subscription_price, subscription_status) VALUES (:facility_code, :name, :facility_type, :address, :phone, :email, :working_time, :description, :subscription_plan, :subscription_price, :subscription_status)");
             $db->bind(':facility_code', $facilityCode);
             $db->bind(':name', $hospitalName);
             $db->bind(':facility_type', $facilityType);
@@ -94,6 +180,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $db->bind(':email', $email);
             $db->bind(':working_time', $workingTime);
             $db->bind(':description', $description);
+            $db->bind(':subscription_plan', $subscriptionPlan);
+            $db->bind(':subscription_price', $selectedPlan['price']);
+            $db->bind(':subscription_status', $subscriptionStatus);
             $db->execute();
 
             $db->query("SELECT id FROM hospitals WHERE email = :email ORDER BY id DESC LIMIT 1");
@@ -107,7 +196,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $db->bind(':password', password_hash($password, PASSWORD_DEFAULT));
             $db->bind(':hospital_id', $hospital['id']);
             $db->bind(':address', $address);
-            $success = $db->execute() ? "Đăng ký bệnh viện thành công. Vui lòng chờ Admin duyệt tài khoản. Hệ thống sẽ chuyển về trang chủ sau vài giây." : "Không thể tạo tài khoản bệnh viện.";
+            if ($db->execute()) {
+                $_SESSION['hospital_subscription_payment'] = [
+                    'hospital_id' => (int)$hospital['id'],
+                    'plan' => $subscriptionPlan,
+                    'amount' => (int)$selectedPlan['price'],
+                    'name' => $selectedPlan['name']
+                ];
+                header('Location: ../../vnpay_create_payment.php?payment_context=hospital_subscription');
+                exit();
+            }
+            $success = "Không thể tạo tài khoản bệnh viện.";
             }
         }
     }
@@ -119,9 +218,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Đăng ký đối tác cơ sở y tế - MedicailBooking</title>
-    <?php if ($success): ?>
-        <meta http-equiv="refresh" content="3;url=<?php echo $base_url; ?>/index.php">
-    <?php endif; ?>
+
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Bootstrap Icons -->
@@ -357,6 +454,83 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             background: rgba(255, 255, 255, 0.2);
             transform: translateX(-3px);
         }
+
+        .package-option {
+            height: 100%;
+        }
+        .package-option input {
+            position: absolute;
+            opacity: 0;
+        }
+        .package-card {
+            height: 100%;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 18px;
+            background: #f8fafc;
+            padding: 18px;
+            cursor: pointer;
+            transition: all 0.25s ease;
+        }
+        .package-option input:checked + .package-card {
+            border-color: #00b5f1;
+            background: #ffffff;
+            box-shadow: 0 12px 28px rgba(0, 181, 241, 0.18);
+            transform: translateY(-3px);
+        }
+        .package-price {
+            color: #023f6d;
+            font-size: 1.05rem;
+            font-weight: 800;
+        }
+        .package-info-toggle {
+            display: inline-flex;
+            color: #00b5f1;
+            font-size: 0.85rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .package-modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(2, 63, 109, 0.55);
+            z-index: 9999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .package-modal-backdrop.show {
+            display: flex;
+        }
+        .package-modal-box {
+            width: min(560px, 100%);
+            max-height: 82vh;
+            overflow-y: auto;
+            background: #ffffff;
+            border-radius: 22px;
+            padding: 28px;
+            box-shadow: 0 28px 70px rgba(2, 63, 109, 0.35);
+            animation: modalPop 0.22s ease-out;
+        }
+        @keyframes modalPop {
+            from { transform: translateY(18px) scale(0.96); opacity: 0; }
+            to { transform: translateY(0) scale(1); opacity: 1; }
+        }
+        .package-features {
+            padding-left: 0;
+            list-style: none;
+            color: #475569;
+            font-size: 0.92rem;
+        }
+        .package-features li {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .package-features i {
+            color: #00b5f1;
+            flex-shrink: 0;
+        }
     </style>
 </head>
 <body>
@@ -462,6 +636,28 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     </div>
                 </div>
 
+                <div class="col-12">
+                    <label class="form-label">Chọn gói đăng ký <span class="text-danger">*</span></label>
+                    <div class="row g-3">
+                        <?php foreach ($subscriptionPlans as $planKey => $plan): ?>
+                            <div class="col-md-4">
+                                <label class="package-option position-relative d-block">
+                                    <input type="radio" name="subscription_plan" value="<?php echo htmlspecialchars($planKey); ?>" required <?php echo (($_POST['subscription_plan'] ?? 'basic') === $planKey) ? 'checked' : ''; ?>>
+                                    <div class="package-card">
+                                        <div class="d-flex align-items-center justify-content-between mb-2">
+                                            <h6 class="fw-bold mb-0" style="color:#023f6d;"><?php echo htmlspecialchars($plan['name']); ?></h6>
+                                            <i class="bi bi-check-circle-fill" style="color:#00b5f1;"></i>
+                                        </div>
+                                        <div class="package-price mb-3"><?php echo htmlspecialchars($plan['price_text']); ?></div>
+                                        <button type="button" class="btn btn-link p-0 package-info-toggle" data-plan-key="<?php echo htmlspecialchars($planKey); ?>">Xem thông tin gói</button>
+                                    </div>
+                                </label>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                    <div class="text-muted mt-2" style="font-size: 0.8rem;">Gói trả phí sẽ được thanh toán sau khi gửi đăng ký và trước khi kích hoạt đầy đủ.</div>
+                </div>
+
                 <!-- Mật Khẩu -->
                 <div class="col-md-6">
                     <label class="form-label">Mật khẩu tài khoản <span class="text-danger">*</span></label>
@@ -485,6 +681,31 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <button type="submit" class="btn btn-submit w-100 mt-5 mb-3">Gửi thông tin đăng ký đối tác</button>
         </form>
 
+        <?php foreach ($subscriptionPlans as $planKey => $plan): ?>
+            <div class="package-modal-backdrop" id="packageModal-<?php echo htmlspecialchars($planKey); ?>">
+                <div class="package-modal-box">
+                    <div class="d-flex align-items-start justify-content-between gap-3 mb-3">
+                        <div>
+                            <h4 class="fw-bold mb-1" style="color:#023f6d;"><?php echo htmlspecialchars($plan['name']); ?></h4>
+                            <div class="package-price"><?php echo htmlspecialchars($plan['price_text']); ?></div>
+                        </div>
+                        <button type="button" class="btn-close package-modal-close" aria-label="Đóng"></button>
+                    </div>
+                    <ul class="package-features mb-4">
+                        <?php foreach ($plan['features'] as $feature): ?>
+                            <li><i class="bi bi-check2"></i><span><?php echo htmlspecialchars($feature); ?></span></li>
+                        <?php endforeach; ?>
+                        <li><i class="bi bi-clock-history"></i><span>Gói có hiệu lực 30 ngày kể từ ngày thanh toán thành công.</span></li>
+                        <li><i class="bi bi-exclamation-circle"></i><span>Sau khi hết hạn, tài khoản cơ sở y tế sẽ chuyển sang trạng thái Hết hạn gói.</span></li>
+                        <li><i class="bi bi-lock"></i><span>Khi gói hết hạn: không thể thêm hoặc chỉnh sửa dữ liệu, không thể nhận lịch đặt khám mới, vẫn được xem dữ liệu đã có.</span></li>
+                        <li><i class="bi bi-arrow-repeat"></i><span>Sau khi gia hạn thành công, toàn bộ chức năng sẽ được kích hoạt trở lại.</span></li>
+                        <li><i class="bi bi-shield-check"></i><span>Mỗi cơ sở y tế chỉ được phép có 01 gói dịch vụ đang hoạt động tại một thời điểm.</span></li>
+                    </ul>
+                    <button type="button" class="btn btn-submit w-100 package-modal-close">Đồng ý</button>
+                </div>
+            </div>
+        <?php endforeach; ?>
+
         <!-- Redirect links -->
         <div class="text-center auth-footer mt-4">
             <div>Đã có tài khoản đối tác? <a href="login.php" style="color: #023f6d;">Đăng nhập tại đây</a></div>
@@ -493,6 +714,24 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             </div>
         </div>
     </div>
+
+    <script>
+        document.querySelectorAll('.package-info-toggle').forEach(function (button) {
+            button.addEventListener('click', function () {
+                var modal = document.getElementById('packageModal-' + button.dataset.planKey);
+                if (modal) {
+                    modal.classList.add('show');
+                }
+            });
+        });
+        document.querySelectorAll('.package-modal-backdrop').forEach(function (modal) {
+            modal.addEventListener('click', function (event) {
+                if (event.target === modal || event.target.classList.contains('package-modal-close')) {
+                    modal.classList.remove('show');
+                }
+            });
+        });
+    </script>
 
 </body>
 </html>
